@@ -4,35 +4,35 @@ The deployed application **does not depend on a laptop or local tunnel**. GitHub
 
 ## Folder structure
 
-- \`backend/app/\`: PayPal sandbox FastAPI implementation.
-- \`backend/tests/\`: mocked unit and API tests.
-- \`backend/Dockerfile\`, \`backend/railway.json\`: Railway build and service health check.
-- \`web/\`: Vercel frontend, server-side status endpoint and tests.
-- \`docs/\`: setup and deployment notes.
+- `backend/app/`: PayPal sandbox FastAPI implementation.
+- `backend/tests/`: mocked unit and API tests.
+- `backend/Dockerfile`, `backend/railway.json`: Railway build and service health check.
+- `web/`: Vercel frontend, server-side status endpoint and tests.
+- `docs/`: setup and deployment notes.
 
 The Stage 2 branch is based on the Stage 1 branch. Merge the Stage 1 draft PR to main first, and then Stage 2 to main, after reviewing the code. Deploy from main once both are present.
 
 ## Railway — backend
 
-1. Visit https://railway.com/new and deploy from your GitHub repository \`Kunleadegbie/voicebridge-pay-hackathon\`. Do not connect your existing \`voicebridge-ai\` application.
-2. Under the new Railway service Settings, set **Root Directory** to \`/backend\`. Railway should detect the Dockerfile there. If Railway does not pick up the config file automatically, set **Config File** to \`/backend/railway.json\`.
+1. Visit https://railway.com/new and deploy from your GitHub repository `Kunleadegbie/voicebridge-pay-hackathon`. Do not connect your existing `voicebridge-ai` application.
+2. Under the new Railway service Settings, set **Root Directory** to `/backend`. Railway should detect the Dockerfile there. If Railway does not pick up the config file automatically, set **Config File** to `/backend/railway.json`.
 3. In **Variables**, securely enter these three values:
-   - \`PAYPAL_CLIENT_ID\` — Sandbox Client ID.
-   - \`PAYPAL_CLIENT_SECRET\` — Sandbox Client Secret.
-   - \`DEMO_ACCESS_KEY\` — a long, unpredictable key for private tests only.
-4. Do not manually set \`PORT\`: Railway provides it.
+   - `PAYPAL_CLIENT_ID` — Sandbox Client ID.
+   - `PAYPAL_CLIENT_SECRET` — Sandbox Client Secret.
+   - `DEMO_ACCESS_KEY` — a long, unpredictable key for private tests only.
+4. Do not manually set `PORT`: Railway provides it.
 5. Deploy the main branch after the reviewed PRs are merged. In Settings → Networking, select **Generate Domain**.
-6. Open \`https://YOUR-RAILWAY-DOMAIN/health\`. Expected JSON is \`{"status":"ok","mode":"sandbox","release":"stage-1"}\`. This tests hosting, **not PayPal authentication**.
+6. Open `https://YOUR-RAILWAY-DOMAIN/health`. Expected JSON is `{"status":"ok","mode":"sandbox","release":"stage-1"}`. This tests hosting, **not PayPal authentication**.
 
 Keep developer test API keys and PayPal secrets **only on the server**. Never enter them into Vercel's frontend code, GitHub, a screenshot or a chat.
 
 ## Vercel — frontend
 
 1. Visit https://vercel.com/new and import the **same** hackathon GitHub repository.
-2. Set Root Directory to \`web\` and Framework Preset to **Other**; no custom build command is necessary.
-3. Add \`BACKEND_URL=https://YOUR-RAILWAY-DOMAIN\` under Project Settings → Environment Variables. This URL is public and contains no credentials; the Vercel Function reads it server-side.
+2. Set Root Directory to `web` and Framework Preset to **Other**; no custom build command is necessary.
+3. Add `BACKEND_URL=https://YOUR-RAILWAY-DOMAIN` under Project Settings → Environment Variables. This URL is public and contains no credentials; the Vercel Function reads it server-side.
 4. Deploy from main, open the resulting site, and select **Check cloud connection**.
-5. If you add or change \`BACKEND_URL\` after an existing deployment, redeploy for the updated environment setting to take effect.
+5. If you add or change `BACKEND_URL` after an existing deployment, redeploy for the updated environment setting to take effect.
 
 The website should report **Connected** if the Vercel Function can reach the Railway health endpoint. This does **not** mean that payment capture or voice AI is complete.
 
