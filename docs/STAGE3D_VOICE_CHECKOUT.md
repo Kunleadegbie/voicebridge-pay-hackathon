@@ -1,8 +1,8 @@
 # Stage 3D-A — Secure voice-first sandbox checkout pilot
 
 Stage 3C was completed in a private PowerShell test: PayPal Order
-\`2E2603450P696001B\`, USD 5.00, \`COMPLETED\`, capture
-\`4EL59183RV2282800\`. This is historical evidence from the test operator;
+`2E2603450P696001B`, USD 5.00, `COMPLETED`, capture
+`4EL59183RV2282800`. This is historical evidence from the test operator;
 no financial secrets belong in the repository.
 
 ## What this development slice adds
@@ -15,39 +15,39 @@ no financial secrets belong in the repository.
 - An optional English device-generated spoken summary (not multilingual TTS).
 - A text fallback and an explicit, independent user review checkbox. Speech
   transcripts never change the amount or authorize/capture payments.
-- Server-side Vercel \`/api/checkout\` proxy storing a short-lived
+- Server-side Vercel `/api/checkout` proxy storing a short-lived
   HMAC-signed order ID in an HttpOnly, Secure, SameSite=Lax browser cookie.
   No JavaScript or browser request has access to PayPal secrets, the demo key,
   the service key, or the cookie contents.
 - Separate, **disabled-by-default** Railway endpoints authenticated with a new
-  \`CHECKOUT_SERVICE_KEY\`. The earlier developer \`DEMO_ACCESS_KEY\` remains
+  `CHECKOUT_SERVICE_KEY`. The earlier developer `DEMO_ACCESS_KEY` remains
   Railway-only and is never duplicated into Vercel.
 - Return page checks PayPal's actual order status, then requires another user
   click for sandbox capture. PayPal's backend re-verifies fixed USD 5.00,
   approval, and completed capture; retries have a stable idempotency key.
 - Return page strips PayPal callback URL query parameters from the visible
   address bar. It does not treat a redirect as evidence of approval.
-- Keeps the original \`Kunleadegbie/voicebridge-ai\` repository and production
+- Keeps the original `Kunleadegbie/voicebridge-ai` repository and production
   service entirely unchanged.
 
 ## Deployment checklist (only after code review and green CI)
 
-Configure **Railway** \`voicebridge-pay-hackathon\` environment:
+Configure **Railway** `voicebridge-pay-hackathon` environment:
 
-- Existing: \`PAYPAL_CLIENT_ID\`, \`PAYPAL_CLIENT_SECRET\`, \`DEMO_ACCESS_KEY\`.
-- Add a NEW independently generated 64-character hex \`CHECKOUT_SERVICE_KEY\`.
-- Add \`ENABLE_PUBLIC_DEMO_CHECKOUT=1\` after reviewing all safeguards.
-- Redeploy and verify \`/health\` still works.
+- Existing: `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `DEMO_ACCESS_KEY`.
+- Add a NEW independently generated 64-character hex `CHECKOUT_SERVICE_KEY`.
+- Add `ENABLE_PUBLIC_DEMO_CHECKOUT=1` after reviewing all safeguards.
+- Redeploy and verify `/health` still works.
 
-Configure **Vercel** \`voicebridge-pay-hackathon-web\` project (server-side
+Configure **Vercel** `voicebridge-pay-hackathon-web` project (server-side
 environment variables; **not** public/client-prefixed):
 
-- Existing \`BACKEND_URL=https://voicebridge-pay-hackathon-production.up.railway.app\`.
-- Add the SAME \`CHECKOUT_SERVICE_KEY\` stored on Railway.
+- Existing `BACKEND_URL=https://voicebridge-pay-hackathon-production.up.railway.app`.
+- Add the SAME `CHECKOUT_SERVICE_KEY` stored on Railway.
 - Add another, **different**, independently generated 64-character hex
-  \`CHECKOUT_SESSION_SECRET\` (Vercel only).
-- Add \`ENABLE_PUBLIC_DEMO_CHECKOUT=1\`.
-- Redeploy; verify the new \`/api/checkout\` function is active.
+  `CHECKOUT_SESSION_SECRET` (Vercel only).
+- Add `ENABLE_PUBLIC_DEMO_CHECKOUT=1`.
+- Redeploy; verify the new `/api/checkout` function is active.
 
 To generate each key using Windows PowerShell without copying it into chat:
 
@@ -59,11 +59,11 @@ To generate each key using Windows PowerShell without copying it into chat:
 
 Generate TWO different keys. Treat them as secrets and do not paste either
 into source, GitHub, an end-user page, ChatGPT or screenshots. Do not reuse
-\`DEMO_ACCESS_KEY\`.
+`DEMO_ACCESS_KEY`.
 
 Important: Vercel's POST origin restriction is deliberately tied to the known
 canonical Vercel production origin
-\`https://voicebridge-pay-hackathon-web.vercel.app\`. A different custom domain
+`https://voicebridge-pay-hackathon-web.vercel.app`. A different custom domain
 or Vercel preview domain requires a reviewed source change. This default
 fails closed for unknown origins.
 
@@ -75,9 +75,9 @@ fails closed for unknown origins.
 3. Sign in with a **Personal sandbox buyer account** and an existing sandbox
    test Visa; never supply a real card.
 4. Complete PayPal buyer approval and return to the Vercel return page.
-5. Press **Verify PayPal approval**. Expect \`APPROVED\`.
+5. Press **Verify PayPal approval**. Expect `APPROVED`.
 6. Press **Confirm simulated US$5.00 capture**. Expect both status values to
-   become \`COMPLETED\` and a sanitized capture ID to appear.
+   become `COMPLETED` and a sanitized capture ID to appear.
 7. Repeat on a mobile browser. If the speech API is absent or lacks a locale,
    the text fallback must still work.
 
@@ -92,7 +92,7 @@ fails closed for unknown origins.
   status/capture remains a separate recovery path.
 - Public opening of this pilot may allow abusive sandbox order generation,
   even though it cannot create live transactions. Keep
-  \`ENABLE_PUBLIC_DEMO_CHECKOUT\` off when not actively demonstrating, and add
+  `ENABLE_PUBLIC_DEMO_CHECKOUT` off when not actively demonstrating, and add
   managed rate limits, persistent audit records and bounded session/order
   quotas before distributing it widely.
 - Browser microphone input can use the browser provider's recognition service.
