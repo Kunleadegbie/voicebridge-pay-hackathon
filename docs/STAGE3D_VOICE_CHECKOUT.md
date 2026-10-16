@@ -61,11 +61,19 @@ Generate TWO different keys. Treat them as secrets and do not paste either
 into source, GitHub, an end-user page, ChatGPT or screenshots. Do not reuse
 `DEMO_ACCESS_KEY`.
 
-Important: Vercel's POST origin restriction is deliberately tied to the known
-canonical Vercel production origin
-`https://voicebridge-pay-hackathon-web.vercel.app`. A different custom domain
-or Vercel preview domain requires a reviewed source change. This default
-fails closed for unknown origins.
+Important: Vercel's POST origin restriction accepts only the two reviewed,
+literal production HTTPS origins:
+- `https://voicebridge-pay-hackathon-web.vercel.app`
+- `https://voicebridgepay.chumcred.com`
+
+It also checks that the request's Origin hostname matches its Host header.
+The Vercel server sends the validated origin to Railway, whose typed request
+schema and PayPal gateway strictly allowlist the same two HTTPS origins.
+PayPal redirects to the **same host where the checkout began**, so that
+the host-only signed session cookie is available on the return page.
+These cookies deliberately do not travel between the custom and Vercel
+hosts. Starting on one and manually switching to the other during checkout
+will not preserve the session. Unknown Vercel preview domains fail closed.
 
 ## User test (sandbox only)
 
