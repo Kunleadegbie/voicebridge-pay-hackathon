@@ -2,7 +2,7 @@ name: Stage 2 cloud checks
 
 on:
   push:
-    branches: [feature/cloud-deployment-stage2]
+    branches: [main, feature/cloud-deployment-stage2, feature/paypal-checkout-stage3c]
   pull_request:
 
 jobs:

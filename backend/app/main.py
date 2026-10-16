@@ -10,10 +10,11 @@ import os
 import secrets
 from typing import Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Path
 from pydantic import BaseModel
 
 from .paypal import PayPalSandboxError, PayPalSandboxGateway
+from .checkout import BuyerApprovalRequired, InvalidDemoOrder, PayPalSandboxCheckout
 
 app = FastAPI(title="VoiceBridge AI Pay — Sandbox Backend", version="0.1.0")
 
@@ -63,3 +64,44 @@ async def create_order(
         "currency": result.currency,
         "amount": result.amount,
     }
+
+
+# Developer-only, sandbox-only checkout verification. Never expose X-Demo-Key
+# to the browser or use these as public customer-facing payment endpoints.
+from typing import Annotated
+from pydantic import Field
+
+ORDER_ID_PATTERN = r"^[A-Z0-9]{8,36}$"
+
+
+class CaptureConfirmation(BaseModel):
+    confirm: Literal[True]
+
+
+@app.get("/api/paypal/orders/{order_id}/status")
+async def sandbox_order_status(
+    order_id: Annotated[str, Path(pattern=ORDER_ID_PATTERN)],
+    gateway: PayPalSandboxGateway = Depends(sandbox_gateway),
+) -> dict:
+    try:
+        return (await PayPalSandboxCheckout(gateway).get_verified_order(order_id)).response()
+    except InvalidDemoOrder:
+        raise HTTPException(status_code=409, detail="Order is not a valid fixed-value sandbox demo") from None
+    except PayPalSandboxError:
+        raise HTTPException(status_code=502, detail="Sandbox order verification failed") from None
+
+
+@app.post("/api/paypal/orders/{order_id}/capture")
+async def sandbox_capture_order(
+    order_id: Annotated[str, Path(pattern=ORDER_ID_PATTERN)],
+    confirmation: CaptureConfirmation,
+    gateway: PayPalSandboxGateway = Depends(sandbox_gateway),
+) -> dict:
+    try:
+        return (await PayPalSandboxCheckout(gateway).capture_approved_order(order_id)).response()
+    except BuyerApprovalRequired:
+        raise HTTPException(status_code=409, detail="Buyer approval required before capture") from None
+    except InvalidDemoOrder:
+        raise HTTPException(status_code=409, detail="Order is not a valid fixed-value sandbox demo") from None
+    except PayPalSandboxError:
+        raise HTTPException(status_code=502, detail="Sandbox capture failed; verify order status before retrying") from None
