@@ -18,6 +18,12 @@ DEMO_CATALOG = {
 }
 
 
+# Explicit HTTPS checkout landing pages hosted by our Vercel frontend.
+# A browser return does not establish buyer approval or payment capture.
+CHECKOUT_RETURN_URL = "https://voicebridge-pay-hackathon-web.vercel.app/payment-return.html"
+CHECKOUT_CANCEL_URL = "https://voicebridge-pay-hackathon-web.vercel.app/payment-cancelled.html"
+
+
 class PayPalSandboxError(Exception):
     """Raised when PayPal Sandbox cannot complete a request."""
 
@@ -70,6 +76,19 @@ class PayPalSandboxGateway:
         token = await self.get_access_token()
         payload: dict[str, Any] = {
             "intent": "CAPTURE",
+            # Fix sandbox checkout review-page loop for known-price orders:
+            # PayPal needs a return URL; PAY_NOW omits the merchant review step.
+            # Capture remains a separate, guarded operation after approval.
+            "payment_source": {
+                "paypal": {
+                    "experience_context": {
+                        "return_url": CHECKOUT_RETURN_URL,
+                        "cancel_url": CHECKOUT_CANCEL_URL,
+                        "user_action": "PAY_NOW",
+                        "shipping_preference": "NO_SHIPPING",
+                    }
+                }
+            },
             "purchase_units": [
                 {
                     "description": item["name"],

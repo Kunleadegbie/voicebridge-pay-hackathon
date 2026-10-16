@@ -35,3 +35,31 @@ Only after buyer approval:
 - **Do not** call these backend routes directly from public Vercel browser JavaScript, expose the demo key, or describe this as a finished customer payment flow.
 - We will implement user-controlled approval, durable transaction state, CSRF/rate limiting, and hosted multilingual AI before hackathon demo publication.
 - This stage does not touch the original VoiceBridge AI deployment, and real money cannot be captured because PayPal uses only sandbox credentials and endpoints.
+
+
+## Checkout loop correction (new orders only)
+
+PayPal sandbox checkout could repeatedly return to the same payment-method page
+after "Continue to Review Order". Our original create-order payload did not send
+`payment_source.paypal.experience_context.return_url` or `cancel_url`. PayPal
+documents `return_url` as the merchant review destination and `PAY_NOW` as the
+appropriate flow for orders with a known final price.
+
+New orders now send an explicit return URL and cancel URL hosted on Vercel,
+`user_action: PAY_NOW`, and `shipping_preference: NO_SHIPPING` for this
+digital demo. This does not change the $5.00 amount, the sandbox-only API,
+or the server-side demo-key protection.
+
+**Important:** The previous sandbox order `0RJ0235509873561P` was created
+without this experience context. After deploying the fix, create a NEW order
+through the guarded POST endpoint and open the NEW approval URL.
+
+The new return/cancel pages are informational only. A browser redirect is NOT
+proof of payment; the developer must use the guarded status endpoint to verify
+PayPal reports `APPROVED` before invoking protected capture with
+`{"confirm":true}`. No demo access key or PayPal credential belongs in browser
+JavaScript or query strings.
+
+If the new order still loops, investigate sandbox account restrictions,
+PayPal errors or checkout/session issues with a redacted screenshot and
+PayPal debug reference instead of reusing real payment methods.
