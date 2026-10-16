@@ -1,45 +1,64 @@
 # VoiceBridge AI Pay — PayPal AI Hackathon 2026
 
-A sandbox-only prototype by Chumcred Limited, extending the existing VoiceBridge AI financial-literacy assistant into accessible voice-assisted payments.
+A **sandbox-only** voice-first accessible payments prototype by Chumcred Limited. It extends the *idea* of the existing VoiceBridge AI financial-literacy application without modifying or redeploying that original product.
 
-## Current implementation — Stage 1
+## Verified cloud and PayPal milestones (16 October 2026)
 
-The backend demonstrates PayPal sandbox OAuth authentication and controlled test-order creation. The demo order amount is USD 5.00, fixed in server-side code. Payment routes require an X-Demo-Key header for private tests.
+- **Railway:** independently hosted FastAPI sandbox backend at `https://voicebridge-pay-hackathon-production.up.railway.app/health`.
+- **Vercel:** independently hosted frontend at `https://voicebridge-pay-hackathon-web.vercel.app/`; backend connection previously verified.
+- **Stage 3A:** live authentication to the official PayPal sandbox API verified.
+- **Stage 3B:** fixed USD 5.00 sandbox order creation verified.
+- **Stage 3C:** actual sandbox buyer approval and completed capture verified for order `2E2603450P696001B`; capture `4EL59183RV2282800`. The repeat read-only status check also confirmed `COMPLETED`.
 
-**Not yet implemented:** buyer approval and capture, voice-driven payment commands, AI interpretation and the final interface. No real payments are supported.
+No real money has moved. Do not describe a sandbox capture as a live financial transaction.
 
-## Local setup — Windows PowerShell
+## Stage 3D-A development preview (PR #5; not yet fully deployed)
 
-From the backend directory:
+The branch adds a mobile-friendly sandbox payment review/approval/capture flow:
+- Private Vercel serverless proxy and short-lived HMAC-signed, HttpOnly checkout cookie; no secret embedded in the frontend.
+- Separate, disabled-by-default Railway service endpoints authenticated by a **new** `CHECKOUT_SERVICE_KEY`; original `DEMO_ACCESS_KEY` is not reused.
+- Exact USD 5.00 price enforced by the Railway backend and reverified before capture.
+- On-screen payment information, a user confirmation checkbox, PayPal buyer redirect, read-only PayPal status verification and a second explicit capture action.
+- Optional experimental browser-native speech recognition selection for Nigerian English, Yoruba, Hausa and Igbo, with a text fallback and optional **English** device playback.
 
-1. Create a virtual environment: py -m venv .venv
-2. Activate it: .venv\Scripts\Activate.ps1
-3. Install dependencies: pip install -r requirements.txt
-4. Set three environment variables: PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, DEMO_ACCESS_KEY. Only use PayPal *sandbox* credentials.
-5. Run the app: uvicorn app.main:app --reload --port 8080
+**Important:** Browser-native speech recognition is **not** N-ATLAS ASR; browser locale support and recognition quality vary. Hosted official N-ATLAS four-language ASR, actual AI intent handling, production customer authentication, durable payment ledger, webhook reconciliation and robust rate limits are pending. Do not claim these features work yet.
 
-Example PowerShell requests:
+## Deployment
 
-- Health: Invoke-RestMethod http://127.0.0.1:8080/health
-- Authenticate: Invoke-RestMethod http://127.0.0.1:8080/api/paypal/connectivity -Headers @{ "X-Demo-Key" = $env:DEMO_ACCESS_KEY }
-- Create order: $body = @{ item_code = "financial-literacy-demo" } | ConvertTo-Json
-- Invoke-RestMethod http://127.0.0.1:8080/api/paypal/orders -Method Post -ContentType "application/json" -Headers @{ "X-Demo-Key" = $env:DEMO_ACCESS_KEY } -Body $body
+See [Stage 3D configuration and test checklist](docs/STAGE3D_VOICE_CHECKOUT.md). Checkout **must remain disabled** until both Railway and Vercel are configured securely and the user explicitly enables sandbox demonstrations.
 
-This creates a sandbox order but does NOT capture a payment.
+Earlier cloud details: [Stage 2 deployment](docs/DEPLOYMENT_STAGE2.md).
 
-## Run tests
+## Local tests
 
-From the backend directory, run: pytest -q
+Python from `backend/`:
 
-Tests use mocked PayPal responses, no external calls or real credentials.
+```powershell
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+pytest -q
+```
 
-## Security and boundaries
+Frontend from `web/` with Node.js 22:
 
-- All requests target the official api-m.sandbox.paypal.com hostname.
-- Secrets remain in environment variables; never commit them or paste them into frontend code.
-- Do not expose these private testing endpoints publicly or embed the demo access key in browser JavaScript. A proper authenticated user flow is planned in Stage 2.
-- No raw access tokens or raw PayPal API error bodies are returned to users.
-- The production VoiceBridge AI repository and live website are unchanged.
-- Check N-ATLAS licensing, attribution and open-source competition requirements before copying components.
+```powershell
+node --check app.js
+node --check checkout.js
+node --check payment-result.js
+node --check api/checkout.js
+npm test
+```
 
-See docs/ROADMAP.md for subsequent milestones.
+Automated tests use mocked PayPal interactions and do not move real or sandbox funds.
+
+## Security boundaries
+
+- All PayPal REST operations are hardcoded to `api-m.sandbox.paypal.com`.
+- The browser never receives PayPal Client Secret, `DEMO_ACCESS_KEY`, `CHECKOUT_SERVICE_KEY` or `CHECKOUT_SESSION_SECRET`.
+- Customer speech or AI output **never initiates or confirms payment**.
+- Buyer approval on PayPal is distinct from our server-side capture.
+- The existing VoiceBridge AI production website, repository and credentials are unchanged.
+- Review Chumcred's source licence and third-party N-ATLAS, speech and PayPal terms before open-sourcing or reusing original components.
+
+See [ROADMAP](docs/ROADMAP.md) for later releases.
