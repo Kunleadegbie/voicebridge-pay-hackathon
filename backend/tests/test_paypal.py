@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import httpx
 import pytest
@@ -18,6 +19,13 @@ def test_connectivity_and_fixed_price_order():
         assert request.url.path == "/v2/checkout/orders"
         assert request.headers["Authorization"] == "Bearer fake-sandbox-token"
         assert b'"value":"5.00"' in request.content
+        payload = json.loads(request.content)
+        context = payload["payment_source"]["paypal"]["experience_context"]
+        assert payload["intent"] == "CAPTURE"
+        assert context["user_action"] == "PAY_NOW"
+        assert context["shipping_preference"] == "NO_SHIPPING"
+        assert context["return_url"] == "https://voicebridge-pay-hackathon-web.vercel.app/payment-return.html"
+        assert context["cancel_url"] == "https://voicebridge-pay-hackathon-web.vercel.app/payment-cancelled.html"
         return httpx.Response(
             201,
             json={
