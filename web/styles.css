@@ -25,3 +25,21 @@ button:focus-visible,a:focus-visible{outline:3px solid #7cd8ff;outline-offset:4p
 .feature p{color:#cfdded;line-height:1.6;margin-bottom:0}
 footer{margin:45px 0 0;display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap;color:#adc1d5;font-size:.83rem}
 @media(max-width:700px){.site{padding:18px}.hero{padding:48px 0 28px}.features{grid-template-columns:1fr}.status-card{padding:22px}}
+
+.checkout-card{margin-top:28px;border:1px solid #355270;border-radius:18px;background:#102a42;padding:30px}
+.checkout-card h2{font-size:clamp(1.4rem,3vw,2rem);margin:12px 0}
+.checkout-card p{line-height:1.65;color:#d6e4f1}
+.pilot-fields{display:grid;grid-template-columns:minmax(180px,1fr) 2fr;gap:16px;margin:22px 0}
+.pilot-fields label{display:block;margin-bottom:9px;font-weight:700}
+.pilot-fields select,.pilot-fields textarea{width:100%;padding:14px;border:1px solid #7093ad;border-radius:10px;background:#091e33;color:#f4f7fb;font:inherit}
+.pilot-fields select:focus-visible,.pilot-fields textarea:focus-visible{outline:3px solid #7cd8ff}
+.pilot-actions{display:flex;gap:12px;flex-wrap:wrap;margin:15px 0}
+.secondary-button{background:#21425c;color:#f4f7fb;border:1px solid #6f91aa}
+.field-help{font-size:.85rem;color:#b9cfdf}
+.price-review{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:18px;border:1px solid #466882;border-radius:12px;background:#0b2035;margin:22px 0}
+.price-review p{font-size:.87rem;margin:8px 0 0}
+.price-review strong:last-child{white-space:nowrap;font-size:1.2rem}
+.checkbox-row{display:flex;gap:12px;align-items:flex-start;line-height:1.6;margin-bottom:18px}
+.checkbox-row input{flex:none;width:19px;height:19px;margin-top:3px}
+#pilot-checkout-status,#pilot-result{color:#d5e6f6;font-size:.95rem}
+@media(max-width:700px){.checkout-card{padding:20px}.pilot-fields{grid-template-columns:1fr}.price-review{align-items:flex-start;flex-direction:column}}
