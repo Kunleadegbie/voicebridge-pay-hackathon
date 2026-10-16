@@ -2,7 +2,7 @@ name: Stage 2 cloud checks
 
 on:
   push:
-    branches: [main, feature/cloud-deployment-stage2, feature/paypal-checkout-stage3c]
+    branches: [main, feature/cloud-deployment-stage2, feature/paypal-checkout-stage3c, feature/stage3d-voice-first-checkout-preview]
   pull_request:
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: node --check app.js && node --check api/status.js && npm test
+      - run: node --check app.js && node --check checkout.js && node --check payment-result.js && node --check api/status.js && node --check api/checkout.js && npm test
         working-directory: web
 
   docker-backend:
