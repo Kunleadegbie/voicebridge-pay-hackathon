@@ -8,6 +8,7 @@
   <title>VoiceBridge AI Pay — Chumcred Limited</title>
   <link rel="stylesheet" href="/styles.css">
   <script src="/app.js" defer></script>
+  <script src="/checkout.js" defer></script>
 </head>
 <body>
   <main class="site">
@@ -22,7 +23,7 @@
       <p class="eyebrow">Financial access through familiar languages</p>
       <h1 id="page-title">Make digital payments easier to understand. <span>Start with your voice.</span></h1>
       <p class="intro">VoiceBridge AI Pay is a competition prototype by Chumcred Limited. We are developing multilingual AI guidance and controlled PayPal sandbox checkout for users who benefit from a simpler, voice-first experience.</p>
-      <div class="notice" role="note"><strong>Development preview:</strong> Voice commands, order approval, and payment capture are not available yet. This page only verifies that the independently hosted cloud services can communicate.</div>
+      <div class="notice" role="note"><strong>Stage 3D sandbox pilot:</strong> The cloud connection is working. A fixed-price buyer-approval and capture interface is in development and stays disabled until securely configured. Browser speech recognition is an optional preview, not the N-ATLAS multilingual voice service.</div>
     </section>
     <section class="status-card" aria-labelledby="cloud-title">
       <div>
@@ -32,10 +33,48 @@
       </div>
       <button id="check-cloud" type="button">Check cloud connection</button>
     </section>
+    <section class="checkout-card" aria-labelledby="pilot-title">
+      <p class="eyebrow">Stage 3D · Voice-first sandbox checkout pilot</p>
+      <h2 id="pilot-title">Understand the payment. Decide for yourself.</h2>
+      <p class="intro">This early pilot uses a fixed <strong>US$5.00 simulated payment</strong>. No real funds move. The browser preview below is not N-ATLAS transcription; our four-language hosted AI service is a separate integration milestone.</p>
+
+      <div class="pilot-fields">
+        <div>
+          <label for="pilot-language">Preferred language</label>
+          <select id="pilot-language">
+            <option value="en-NG">Nigerian English</option>
+            <option value="yo-NG">Yorùbá</option>
+            <option value="ha-NG">Hausa</option>
+            <option value="ig-NG">Igbo</option>
+          </select>
+        </div>
+        <div>
+          <label for="voice-transcript">Optional spoken or typed note</label>
+          <textarea id="voice-transcript" rows="3" maxlength="240" placeholder="Example: Help me understand this test payment."></textarea>
+        </div>
+      </div>
+
+      <div class="pilot-actions">
+        <button id="pilot-mic" class="secondary-button" type="button">🎤 Try browser voice input</button>
+        <button id="pilot-listen" class="secondary-button" type="button">🔊 Hear English payment summary</button>
+      </div>
+      <p id="pilot-voice-status" class="field-help" role="status" aria-live="polite">Browser speech recognition is experimental and depends on language/browser support. It may use a third-party speech service. Do not say names, PINs, passwords, OTPs, account numbers, or other private information. A text fallback is always available.</p>
+
+      <div class="price-review" aria-label="Fixed sandbox payment summary">
+        <div><strong>Financial literacy demonstration</strong><p>Simulated PayPal transaction — not a purchase or money transfer</p></div>
+        <strong>USD $5.00</strong>
+      </div>
+      <label class="checkbox-row" for="pilot-confirm">
+        <input id="pilot-confirm" type="checkbox">
+        <span>I have checked the fixed US$5.00 sandbox amount and understand that clicking the button will take me to PayPal to approve a simulated transaction. My speech or typed note cannot authorize a payment.</span>
+      </label>
+      <button id="pilot-start" type="button" disabled>Continue to PayPal Sandbox</button>
+      <p id="pilot-checkout-status" role="status" aria-live="polite">Checkout requires separate sandbox-only cloud configuration. It is disabled until the service is explicitly enabled.</p>
+    </section>
     <section class="features" aria-label="Development roadmap">
-      <article class="feature"><span class="step">01</span><h3>PayPal sandbox</h3><p>Sandbox-only test orders; approval and capture to be added with strict user confirmation.</p></article>
-      <article class="feature"><span class="step">02</span><h3>Multilingual voice</h3><p>Reuse eligible VoiceBridge technology for Nigerian English, Yoruba, Hausa, and Igbo.</p></article>
-      <article class="feature"><span class="step">03</span><h3>Accessible experience</h3><p>Clear text and spoken confirmations, error recovery, and mobile-friendly controls.</p></article>
+      <article class="feature"><span class="step">01</span><h3>PayPal sandbox</h3><p>Real sandbox approval and capture have been verified. Browser pilot is enabled only after secure server configuration.</p></article>
+      <article class="feature"><span class="step">02</span><h3>Multilingual voice</h3><p>Experimental browser speech input now; licensed N-ATLAS ASR integration for all four languages remains planned.</p></article>
+      <article class="feature"><span class="step">03</span><h3>Accessible experience</h3><p>Accessible text review, separate deliberate approval/capture and mobile-friendly controls.</p></article>
     </section>
     <footer><span>© 2026 Chumcred Limited</span><span>Demo environment only. No live money is moved.</span></footer>
   </main>
