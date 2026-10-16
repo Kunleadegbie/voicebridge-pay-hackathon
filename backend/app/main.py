@@ -23,6 +23,14 @@ class DemoOrderRequest(BaseModel):
     item_code: Literal["financial-literacy-demo"]
 
 
+class WebCheckoutOrderRequest(DemoOrderRequest):
+    # Explicit allowlist: PayPal may return ONLY to our two trusted frontend hosts.
+    checkout_origin: Literal[
+        "https://voicebridge-pay-hackathon-web.vercel.app",
+        "https://voicebridgepay.chumcred.com",
+    ]
+
+
 def sandbox_gateway(x_demo_key: str | None = Header(default=None)) -> PayPalSandboxGateway:
     configured_key = os.getenv("DEMO_ACCESS_KEY", "")
     client_id = os.getenv("PAYPAL_CLIENT_ID", "")
@@ -128,11 +136,13 @@ def web_checkout_gateway(
 
 @app.post("/api/internal/checkout/orders", status_code=201)
 async def web_create_order(
-    order: DemoOrderRequest,
+    order: WebCheckoutOrderRequest,
     gateway: PayPalSandboxGateway = Depends(web_checkout_gateway),
 ) -> dict[str, str | None]:
     try:
-        result = await gateway.create_demo_order(order.item_code)
+        result = await gateway.create_demo_order(
+            order.item_code, checkout_origin=order.checkout_origin
+        )
     except PayPalSandboxError:
         raise HTTPException(status_code=502, detail="Sandbox order creation failed") from None
     return {

@@ -23,6 +23,14 @@ DEMO_CATALOG = {
 CHECKOUT_RETURN_URL = "https://voicebridge-pay-hackathon-web.vercel.app/payment-return.html"
 CHECKOUT_CANCEL_URL = "https://voicebridge-pay-hackathon-web.vercel.app/payment-cancelled.html"
 
+# Only these exact, trusted HTTPS frontends may receive sandbox return links.
+# No arbitrary callback URLs are accepted from an end user's browser.
+ALLOWED_CHECKOUT_ORIGINS = frozenset({
+    "https://voicebridge-pay-hackathon-web.vercel.app",
+    "https://voicebridgepay.chumcred.com",
+})
+
+
 
 class PayPalSandboxError(Exception):
     """Raised when PayPal Sandbox cannot complete a request."""
@@ -69,10 +77,15 @@ class PayPalSandboxGateway:
         except (httpx.HTTPError, ValueError) as exc:
             raise PayPalSandboxError("PayPal sandbox authentication failed") from exc
 
-    async def create_demo_order(self, item_code: str) -> DemoOrder:
+    async def create_demo_order(self, item_code: str, *, checkout_origin: str | None = None) -> DemoOrder:
         item = DEMO_CATALOG.get(item_code)
         if item is None:
             raise ValueError("Unknown demo item")
+        if checkout_origin is not None and checkout_origin not in ALLOWED_CHECKOUT_ORIGINS:
+            raise ValueError("Unapproved sandbox checkout origin")
+        # Older, private PowerShell tests retain the historical Vercel default.
+        return_url = f"{checkout_origin}/payment-return.html" if checkout_origin else CHECKOUT_RETURN_URL
+        cancel_url = f"{checkout_origin}/payment-cancelled.html" if checkout_origin else CHECKOUT_CANCEL_URL
         token = await self.get_access_token()
         payload: dict[str, Any] = {
             "intent": "CAPTURE",
@@ -82,8 +95,8 @@ class PayPalSandboxGateway:
             "payment_source": {
                 "paypal": {
                     "experience_context": {
-                        "return_url": CHECKOUT_RETURN_URL,
-                        "cancel_url": CHECKOUT_CANCEL_URL,
+                        "return_url": return_url,
+                        "cancel_url": cancel_url,
                         "user_action": "PAY_NOW",
                         "shipping_preference": "NO_SHIPPING",
                     }

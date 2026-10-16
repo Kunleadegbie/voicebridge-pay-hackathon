@@ -58,3 +58,37 @@ def test_invalid_sandbox_credentials_have_safe_error_message():
         asyncio.run(client.get_access_token())
     assert "do-not-expose" not in str(exc.value)
     assert "invalid_client" not in str(exc.value)
+
+
+def test_custom_domain_return_url_is_bound_to_trusted_checkout_host():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/oauth2/token":
+            return httpx.Response(200, json={"access_token": "fake"})
+        context = json.loads(request.content)["payment_source"]["paypal"]["experience_context"]
+        assert context["return_url"] == "https://voicebridgepay.chumcred.com/payment-return.html"
+        assert context["cancel_url"] == "https://voicebridgepay.chumcred.com/payment-cancelled.html"
+        return httpx.Response(201, json={
+            "id": "TEST-ORDER-CUSTOM",
+            "status": "CREATED",
+            "links": [{"rel": "approve", "href": "https://www.sandbox.paypal.com/checkoutnow?token=DEMO"}],
+        })
+
+    gateway = PayPalSandboxGateway("fake-id", "fake-secret", transport=httpx.MockTransport(handler))
+    result = asyncio.run(gateway.create_demo_order(
+        "financial-literacy-demo", checkout_origin="https://voicebridgepay.chumcred.com"
+    ))
+    assert result.order_id == "TEST-ORDER-CUSTOM"
+
+
+@pytest.mark.parametrize("untrusted", [
+    "https://voicebridgepay.chumcred.com.attacker.com",
+    "http://voicebridgepay.chumcred.com",
+    "https://voicebridgepay.chumcred.com/evil",
+    "https://evil.example",
+])
+def test_order_rejects_untrusted_return_origins(untrusted):
+    gateway = PayPalSandboxGateway("fake-id", "fake-secret")
+    with pytest.raises(ValueError, match="Unapproved sandbox checkout origin"):
+        asyncio.run(gateway.create_demo_order(
+            "financial-literacy-demo", checkout_origin=untrusted
+        ))

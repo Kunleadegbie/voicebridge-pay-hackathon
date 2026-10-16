@@ -20,6 +20,7 @@ function makeRequest(body, cookie = "") {
     method: "POST",
     headers: {
       "origin": ORIGIN,
+      "host": new URL(ORIGIN).host,
       "content-type": "application/json",
       "x-requested-with": "VoiceBridgePay",
       "sec-fetch-site": "same-origin",
@@ -42,7 +43,12 @@ function upstream(approved = false) {
   const calls = [];
   globalThis.fetch = async (url, opts) => {
     const target = new URL(url);
-    calls.push({ path: target.pathname, method: opts.method, key: opts.headers["X-Checkout-Service-Key"] });
+    calls.push({
+      path: target.pathname,
+      method: opts.method,
+      key: opts.headers["X-Checkout-Service-Key"],
+      body: opts.body ? JSON.parse(opts.body) : null
+    });
     if (target.pathname === "/api/internal/checkout/orders" && opts.method === "POST") {
       return new Response(JSON.stringify({
         order_id: ID, status: "CREATED", currency: "USD",
@@ -118,6 +124,7 @@ test("create signed cookie, verify payment, block premature capture", async () =
   assert.equal(premature.data.reason, "buyer_approval_required");
   assert.equal(calls.some((x) => x.path.endsWith("/capture")), false);
   assert.equal(calls.every((x) => x.key === "k".repeat(64)), true);
+  assert.equal(calls.find(x => x.path === "/api/internal/checkout/orders").body.checkout_origin, ORIGIN);
 });
 
 test("approved order captured only with explicit independent confirmation", async () => {
@@ -149,6 +156,41 @@ test("tampered session cookie cannot approve or capture", async () => {
   await handler(makeRequest({ action: "capture", confirm: true }, tampered), response);
   assert.equal(response.statusCode, 401);
   assert.equal(calls.some((x) => x.path.endsWith("/capture")), false);
+});
+
+
+test("custom Chumcred domain binds checkout to same custom-domain callback", async () => {
+  configure();
+  const calls = upstream(false);
+  const request = makeRequest({ action: "create", item_code: "financial-literacy-demo", confirm: true });
+  request.headers.origin = "https://voicebridgepay.chumcred.com";
+  request.headers.host = "voicebridgepay.chumcred.com";
+  const result = makeResponse();
+  await handler(request, result);
+  assert.equal(result.statusCode, 201);
+  assert.equal(calls.find(x => x.path === "/api/internal/checkout/orders").body.checkout_origin,
+    "https://voicebridgepay.chumcred.com");
+  assert.match(result.headers.get("set-cookie"), /HttpOnly; Secure; SameSite=Lax/);
+});
+
+test("rejects legitimate-origin header with mismatched request host", async () => {
+  configure();
+  const request = makeRequest({ action: "create", item_code: "financial-literacy-demo", confirm: true });
+  request.headers.origin = "https://voicebridgepay.chumcred.com";
+  request.headers.host = "attacker.example";
+  const res = makeResponse();
+  await handler(request, res);
+  assert.equal(res.statusCode, 403);
+});
+
+test("rejects forged custom-domain suffix, despite matching host", async () => {
+  configure();
+  const request = makeRequest({ action: "create", item_code: "financial-literacy-demo", confirm: true });
+  request.headers.origin = "https://voicebridgepay.chumcred.com.attacker.example";
+  request.headers.host = "voicebridgepay.chumcred.com.attacker.example";
+  const res = makeResponse();
+  await handler(request, res);
+  assert.equal(res.statusCode, 403);
 });
 
 test.after(() => {

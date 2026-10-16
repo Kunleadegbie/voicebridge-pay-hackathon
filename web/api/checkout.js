@@ -4,7 +4,10 @@
 // Production use requires a durable ledger, abuse controls and webhook review.
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-const ORIGIN = "https://voicebridge-pay-hackathon-web.vercel.app";
+const ALLOWED_ORIGINS = new Set([
+  "https://voicebridge-pay-hackathon-web.vercel.app",
+  "https://voicebridgepay.chumcred.com"
+]);
 const COOKIE_NAME = "__Host-vbpay_checkout";
 const ORDER_RE = /^[A-Z0-9]{8,36}$/;
 const TTL = 45 * 60;
@@ -105,7 +108,14 @@ export default async function handler(req, res) {
     respond(res, 405, { ok: false, reason: "method_not_allowed" });
     return;
   }
-  if (header(req, "origin") !== ORIGIN ||
+  const checkoutOrigin = header(req, "origin");
+  // Match the browser's Origin to the request hostname: a hostile website
+  // cannot use another approved host as a cross-site order-creation proxy.
+  let sameHost = false;
+  try {
+    sameHost = new URL(checkoutOrigin).host === header(req, "host");
+  } catch { /* origin absent or malformed */ }
+  if (!ALLOWED_ORIGINS.has(checkoutOrigin) || !sameHost ||
       header(req, "x-requested-with") !== "VoiceBridgePay" ||
       !header(req, "content-type").toLowerCase().startsWith("application/json") ||
       (header(req, "sec-fetch-site") && header(req, "sec-fetch-site") !== "same-origin")) {
@@ -145,7 +155,10 @@ export default async function handler(req, res) {
         }
       }
       const created = await upstream(config, "POST", "/api/internal/checkout/orders",
-        { item_code: "financial-literacy-demo" });
+        {
+          item_code: "financial-literacy-demo",
+          checkout_origin: checkoutOrigin
+        });
       if (!ORDER_RE.test(created.order_id) || created.currency !== "USD" ||
           String(created.amount) !== "5.00" || created.status !== "CREATED") {
         throw new Error("Unexpected sandbox order data");
