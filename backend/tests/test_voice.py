@@ -144,10 +144,8 @@ def test_voice_never_accepts_sensitive_payment_related_arguments():
             "language": "en-NG", "audio_base64": wav_base64(),
             "confirm_privacy": True, "amount": "50.00", "capture": True
         })
-        # Pydantic ignores extra fields, but output has only a voice job and
-        # no payment action/route side effects.
-        assert invented_amount.status_code == 202
-        assert set(invented_amount.json()) == {"job_id", "status", "language"}
+        # Refuse unexpected payment-related fields rather than ignoring them.
+        assert invented_amount.status_code == 422
     finally:
         app.dependency_overrides.clear()
 
