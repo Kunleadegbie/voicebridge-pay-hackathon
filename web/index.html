@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/styles.css">
   <script src="/app.js" defer></script>
   <script src="/checkout.js" defer></script>
+  <script src="/natlas-voice.js" defer></script>
 </head>
 <body>
   <main class="site">
@@ -70,6 +71,43 @@
       </label>
       <button id="pilot-start" type="button" disabled>Continue to PayPal Sandbox</button>
       <p id="pilot-checkout-status" role="status" aria-live="polite">Review the fixed US$5.00 amount, then tick the checkbox to begin a sandbox-only test. Checkout is available only when both cloud services are configured.</p>
+    </section>
+    <section class="checkout-card natlas-lab" aria-labelledby="natlas-title">
+      <p class="eyebrow">Stage 3E-A · Restricted N-ATLAS Speech Lab</p>
+      <h2 id="natlas-title">Test genuine Nigerian-language transcription</h2>
+      <p class="intro">This opt-in laboratory will use a <strong>dedicated official N-ATLAS ASR RunPod worker</strong> once configured. It is currently disabled by default and requires a demo passcode. This feature only converts speech to text: it does not interpret, initiate or authorize a payment, and does not yet speak answers back.</p>
+      <div class="pilot-fields">
+        <div>
+          <label for="natlas-language">Spoken language</label>
+          <select id="natlas-language">
+            <option value="en-NG">Nigerian English</option>
+            <option value="yo-NG">Yorùbá</option>
+            <option value="ha-NG">Hausa</option>
+            <option value="ig-NG">Igbo</option>
+          </select>
+        </div>
+        <div>
+          <label for="natlas-passcode">Restricted demonstration passcode</label>
+          <input id="natlas-passcode" type="password" placeholder="Provided separately to authorized testers" autocomplete="off" maxlength="128">
+        </div>
+      </div>
+      <div class="pilot-actions">
+        <button id="natlas-record" type="button" class="secondary-button">🎙️ Start short recording</button>
+        <button id="natlas-stop" type="button" class="secondary-button" disabled>Stop recording</button>
+      </div>
+      <label class="checkbox-row" for="natlas-privacy">
+        <input id="natlas-privacy" type="checkbox">
+        <span>I explicitly consent to submit this test audio to a separate N-ATLAS speech provider. I will not include account details, card numbers, PINs, passwords, OTPs, BVNs, names or other private information. Speech never approves payments.</span>
+      </label>
+      <div class="pilot-actions">
+        <button id="natlas-submit" type="button" disabled>Transcribe using N-ATLAS</button>
+        <button id="natlas-check" type="button" class="secondary-button" disabled>Check transcription status</button>
+      </div>
+      <p id="natlas-status" role="status" aria-live="polite">The N-ATLAS voice pilot requires separate cloud configuration. Do not submit private financial information.</p>
+      <div class="voice-transcript-box" aria-label="Verified N-ATLAS transcript">
+        <strong>N-ATLAS transcript</strong>
+        <p id="natlas-result" aria-live="polite">No transcription yet.</p>
+      </div>
     </section>
     <section class="features" aria-label="Development roadmap">
       <article class="feature"><span class="step">01</span><h3>PayPal sandbox</h3><p>Real sandbox approval and capture have been verified. Browser pilot is enabled only after secure server configuration.</p></article>
