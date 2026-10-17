@@ -39,6 +39,47 @@ async function request(action, confirm = false) {
   return data;
 }
 
+function completed(data) {
+  return validFixedOrder(data) && data.status === "COMPLETED" &&
+    data.capture_status === "COMPLETED" &&
+    typeof data.capture_id === "string" && data.capture_id.length > 0;
+}
+
+function showCompleted(data) {
+  lastVerified = data;
+  captureButton.disabled = true;
+  statusLine.textContent = "Sandbox payment COMPLETED for USD $5.00. PayPal capture reference: " +
+    data.capture_id + ". No real money was transferred.";
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// An uncertain capture must NEVER trigger a second POST. Check PayPal through
+// the read-only status endpoint, which is bound to the signed browser session.
+async function reconcileCapture() {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await sleep(1200);
+    try {
+      const info = await request("status");
+      if (!validFixedOrder(info)) break;
+      if (completed(info)) {
+        showCompleted(info);
+        return;
+      }
+      if (info.status !== "APPROVED") break;
+    } catch {
+      // Brief, bounded status retries; no additional capture attempts.
+    }
+  }
+  lastVerified = null;
+  captureButton.disabled = true;
+  statusLine.textContent = "The sandbox capture result remains unconfirmed. Do NOT click capture again " +
+    "or start a new order. Use Verify PayPal approval to check status, or ask the " +
+    "test coordinator to reconcile this order in PayPal Sandbox.";
+}
+
 function validFixedOrder(data) {
   return data.currency === "USD" &&
     String(data.amount) === "5.00" &&
@@ -53,8 +94,8 @@ verifyButton.addEventListener("click", async () => {
     const info = await request("status");
     if (!validFixedOrder(info)) throw new Error("Order amount mismatch. Capture is blocked.");
     lastVerified = info;
-    if (info.status === "COMPLETED" && info.capture_status === "COMPLETED") {
-      statusLine.textContent = "Sandbox payment COMPLETED. Capture reference: " + String(info.capture_id || "unavailable") + ".";
+    if (completed(info)) {
+      showCompleted(info);
     } else if (info.status === "APPROVED") {
       statusLine.textContent = "PayPal confirms APPROVED for USD $5.00. To capture the simulated payment, click the separate confirmation button below.";
       captureButton.disabled = false;
@@ -76,15 +117,13 @@ captureButton.addEventListener("click", async () => {
   statusLine.textContent = "Requesting a simulated USD $5.00 capture and verifying PayPal's response…";
   try {
     const result = await request("capture", true);
-    if (!validFixedOrder(result) ||
-        result.status !== "COMPLETED" || result.capture_status !== "COMPLETED") {
-      throw new Error("PayPal has not confirmed a completed sandbox capture.");
+    if (!completed(result)) {
+      throw new Error("The sandbox capture response is unconfirmed.");
     }
-    lastVerified = result;
-    statusLine.textContent = "Sandbox capture COMPLETED for USD $5.00. PayPal capture reference: " +
-      String(result.capture_id || "unavailable") + ". No real money was transferred.";
-  } catch (error) {
-    statusLine.textContent = error.message || "Capture status uncertain. Use Verify PayPal approval to check the actual order before retrying.";
+    showCompleted(result);
+  } catch {
+    statusLine.textContent = "Capture response uncertain. Checking the actual PayPal order status without trying another capture…";
+    await reconcileCapture();
   } finally {
     verifyButton.disabled = false;
   }

@@ -134,8 +134,20 @@ class PayPalSandboxCheckout:
             return before
         if before.status != "APPROVED":
             raise BuyerApprovalRequired()
-        data = await self._request("POST", order_id, capture=True)
-        after = _verify_order_details(data, order_id)
-        if after.status != "COMPLETED" or after.capture_status != "COMPLETED":
-            raise PayPalSandboxError("Sandbox capture was not completed")
-        return after
+        try:
+            data = await self._request("POST", order_id, capture=True)
+            after = _verify_order_details(data, order_id)
+            if after.status == "COMPLETED" and after.capture_status == "COMPLETED":
+                return after
+        except (PayPalSandboxError, InvalidDemoOrder):
+            # PayPal may have completed a capture even when its immediate
+            # response fails, times out, or omits order details. Never issue a
+            # second POST here: re-read PayPal's authoritative order instead.
+            pass
+
+        verified = await self.get_verified_order(order_id)
+        if verified.status == "COMPLETED" and verified.capture_status == "COMPLETED":
+            return verified
+        raise PayPalSandboxError(
+            "Sandbox capture outcome is uncertain; verify status before any retry"
+        )

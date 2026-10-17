@@ -231,12 +231,33 @@ export default async function handler(req, res) {
       respond(res, 409, { ok: false, reason: "buyer_approval_required" });
       return;
     }
-    const captured = await upstream(config, "POST",
-      "/api/internal/checkout/orders/" + session.order_id + "/capture",
-      { confirm: true });
-    if (!verified(captured, session.order_id) ||
-        captured.status !== "COMPLETED" || captured.capture_status !== "COMPLETED") {
-      throw new Error("Sandbox capture verification failed");
+    let captured;
+    try {
+      captured = await upstream(config, "POST",
+        "/api/internal/checkout/orders/" + session.order_id + "/capture",
+        { confirm: true });
+      if (!verified(captured, session.order_id) ||
+          captured.status !== "COMPLETED" || captured.capture_status !== "COMPLETED") {
+        throw new Error("Sandbox capture response was not verifiably completed");
+      }
+    } catch {
+      // Once a capture request has been attempted, do NOT issue another POST.
+      // PayPal may have completed the operation despite a 502, transport
+      // failure or missing response. Query the same signed order read-only.
+      try {
+        const reconciled = await upstream(config, "GET",
+          "/api/internal/checkout/orders/" + session.order_id + "/status");
+        if (verified(reconciled, session.order_id) &&
+            reconciled.status === "COMPLETED" && reconciled.capture_status === "COMPLETED" &&
+            typeof reconciled.capture_id === "string" && reconciled.capture_id.length > 0) {
+          respond(res, 200, { ok: true, ...reconciled, recovered: true });
+          return;
+        }
+      } catch {
+        // Recovery failures remain ambiguous, never an instruction to retry capture.
+      }
+      respond(res, 503, { ok: false, reason: "capture_status_uncertain" });
+      return;
     }
     respond(res, 200, { ok: true, ...captured });
   } catch (error) {
