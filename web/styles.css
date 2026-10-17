@@ -43,3 +43,9 @@ footer{margin:45px 0 0;display:flex;gap:12px;justify-content:space-between;flex-
 .checkbox-row input{flex:none;width:19px;height:19px;margin-top:3px}
 #pilot-checkout-status,#pilot-result{color:#d5e6f6;font-size:.95rem}
 @media(max-width:700px){.checkout-card{padding:20px}.pilot-fields{grid-template-columns:1fr}.price-review{align-items:flex-start;flex-direction:column}}
+
+.natlas-lab{margin-top:24px}
+.natlas-lab input[type=password]{width:100%;background:#091e33;color:#f4f7fb;border:1px solid #7093ad;border-radius:10px;padding:14px;font:inherit}
+.natlas-lab input[type=password]:focus-visible{outline:3px solid #7cd8ff}
+.voice-transcript-box{border:1px solid #466882;background:#0b2035;padding:17px;border-radius:12px;margin-top:14px;overflow-wrap:anywhere}
+.voice-transcript-box p{margin:10px 0 0;white-space:pre-wrap}
