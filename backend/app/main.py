@@ -11,10 +11,15 @@ import secrets
 from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Path
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .paypal import PayPalSandboxError, PayPalSandboxGateway
 from .checkout import BuyerApprovalRequired, InvalidDemoOrder, PayPalSandboxCheckout
+from .voice import (
+    RunPodVoiceGateway, VoiceConfigurationError, VoiceProviderError,
+    VoiceValidationError, VoiceQuotaError, provider_config,
+    reserve_demo_slot, validate_wav,
+)
 
 app = FastAPI(title="VoiceBridge AI Pay — Sandbox Backend", version="0.1.0")
 
@@ -181,3 +186,61 @@ async def web_capture_order(
         raise HTTPException(status_code=409, detail="Not a valid fixed-value sandbox order") from None
     except PayPalSandboxError:
         raise HTTPException(status_code=502, detail="Sandbox capture failed; check status before retrying") from None
+
+
+
+# Stage 3E: independent, disabled-by-default N-ATLAS voice transcription.
+# This is completely separated from PayPal and the original VoiceBridge AI.
+# No speech transcript or voice command can authorize or capture payment.
+class VoiceAudioRequest(BaseModel):
+    language: Literal["en-NG", "yo-NG", "ha-NG", "ig-NG"]
+    audio_base64: str = Field(min_length=56, max_length=1_420_000)
+    confirm_privacy: Literal[True]
+
+
+def voice_gateway(
+    x_voice_service_key: str | None = Header(default=None),
+) -> RunPodVoiceGateway:
+    if os.getenv("ENABLE_NATLAS_VOICE") != "1":
+        raise HTTPException(status_code=503, detail="N-ATLAS voice pilot is disabled")
+    expected = os.getenv("VOICE_SERVICE_KEY", "")
+    if len(expected) < 48:
+        raise HTTPException(status_code=503, detail="N-ATLAS voice gateway is not configured")
+    if not x_voice_service_key or not secrets.compare_digest(x_voice_service_key, expected):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    try:
+        endpoint, key = provider_config()
+        return RunPodVoiceGateway(endpoint, key)
+    except VoiceConfigurationError:
+        raise HTTPException(status_code=503, detail="Dedicated N-ATLAS provider is not configured") from None
+
+
+@app.post("/api/internal/voice/submit", status_code=202)
+async def voice_submit(
+    body: VoiceAudioRequest,
+    gateway: RunPodVoiceGateway = Depends(voice_gateway),
+) -> dict:
+    try:
+        validate_wav(body.audio_base64)
+        await reserve_demo_slot()
+        return await gateway.submit(body.audio_base64, body.language)
+    except VoiceValidationError:
+        raise HTTPException(status_code=422, detail="Voice recording must be short, PCM16 mono 16kHz WAV") from None
+    except VoiceQuotaError:
+        raise HTTPException(status_code=429, detail="Voice demo capacity reached") from None
+    except VoiceProviderError:
+        raise HTTPException(status_code=502, detail="N-ATLAS transcription service unavailable") from None
+
+
+@app.get("/api/internal/voice/status/{job_id}")
+async def voice_status(
+    job_id: Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{8,128}$")],
+    language: Literal["en-NG", "yo-NG", "ha-NG", "ig-NG"],
+    gateway: RunPodVoiceGateway = Depends(voice_gateway),
+) -> dict:
+    try:
+        return await gateway.status(job_id, language)
+    except VoiceValidationError:
+        raise HTTPException(status_code=422, detail="Invalid voice job") from None
+    except VoiceProviderError:
+        raise HTTPException(status_code=502, detail="N-ATLAS voice result could not be verified") from None
