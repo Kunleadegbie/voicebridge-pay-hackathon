@@ -39,7 +39,7 @@ function makeResponse() {
   };
 }
 
-function upstream(approved = false) {
+function upstream(approved = false, orderStatus = "CREATED", approvalUrl = APPROVE) {
   const calls = [];
   globalThis.fetch = async (url, opts) => {
     const target = new URL(url);
@@ -51,8 +51,8 @@ function upstream(approved = false) {
     });
     if (target.pathname === "/api/internal/checkout/orders" && opts.method === "POST") {
       return new Response(JSON.stringify({
-        order_id: ID, status: "CREATED", currency: "USD",
-        amount: "5.00", approve_url: APPROVE
+        order_id: ID, status: orderStatus, currency: "USD",
+        amount: "5.00", approve_url: approvalUrl
       }), { status: 201 });
     }
     if (target.pathname.endsWith("/status")) {
@@ -125,6 +125,67 @@ test("create signed cookie, verify payment, block premature capture", async () =
   assert.equal(calls.some((x) => x.path.endsWith("/capture")), false);
   assert.equal(calls.every((x) => x.key === "k".repeat(64)), true);
   assert.equal(calls.find(x => x.path === "/api/internal/checkout/orders").body.checkout_origin, ORIGIN);
+});
+
+test("PayPal wallet PAYER_ACTION_REQUIRED is a valid new buyer approval state", async () => {
+  configure();
+  // Official PayPal Orders v2 documents PAYER_ACTION_REQUIRED when a
+  // payment_source.paypal is supplied in the create-order payload.
+  const calls = upstream(false, "PAYER_ACTION_REQUIRED");
+  const created = makeResponse();
+  await handler(makeRequest({
+    action: "create", item_code: "financial-literacy-demo", confirm: true
+  }), created);
+  assert.equal(created.statusCode, 201);
+  assert.equal(created.data.status, "PAYER_ACTION_REQUIRED");
+  assert.equal(created.data.currency, "USD");
+  assert.equal(created.data.amount, "5.00");
+  assert.equal(created.data.approve_url, APPROVE);
+  const signed = created.headers.get("set-cookie");
+  assert.match(signed, /HttpOnly; Secure; SameSite=Lax/);
+  const premature = makeResponse();
+  await handler(makeRequest({
+    action: "capture", confirm: true
+  }, signed.split(";")[0]), premature);
+  assert.equal(premature.statusCode, 409);
+  assert.equal(premature.data.reason, "buyer_approval_required");
+  assert.equal(calls.some(x => x.path.endsWith("/capture")), false);
+});
+
+test("unexpected order status fails closed with sanitized reason", async () => {
+  configure();
+  upstream(false, "FAILED");
+  const result = makeResponse();
+  await handler(makeRequest({
+    action: "create", item_code: "financial-literacy-demo", confirm: true
+  }), result);
+  assert.equal(result.statusCode, 503);
+  assert.equal(result.data.reason, "sandbox_order_status_unexpected");
+  assert.equal(result.headers.has("set-cookie"), false);
+});
+
+test("untrusted PayPal approval link is rejected without a signed session", async () => {
+  configure();
+  upstream(false, "PAYER_ACTION_REQUIRED", "https://fake-paypal.example/checkoutnow?token=attacker");
+  const result = makeResponse();
+  await handler(makeRequest({
+    action: "create", item_code: "financial-literacy-demo", confirm: true
+  }), result);
+  assert.equal(result.statusCode, 503);
+  assert.equal(result.data.reason, "sandbox_approval_link_invalid");
+  assert.equal(result.headers.has("set-cookie"), false);
+});
+
+test("missing PayPal approval link fails closed with no session cookie", async () => {
+  configure();
+  upstream(false, "PAYER_ACTION_REQUIRED", null);
+  const result = makeResponse();
+  await handler(makeRequest({
+    action: "create", item_code: "financial-literacy-demo", confirm: true
+  }), result);
+  assert.equal(result.statusCode, 503);
+  assert.equal(result.data.reason, "sandbox_approval_link_invalid");
+  assert.equal(result.headers.has("set-cookie"), false);
 });
 
 test("approved order captured only with explicit independent confirmation", async () => {
