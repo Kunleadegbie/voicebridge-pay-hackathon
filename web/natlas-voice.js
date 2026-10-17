@@ -29,7 +29,7 @@
 
   function message(value) { status.textContent = value; }
   function controls() {
-    start.disabled = !supported || recording || inFlight;
+    start.disabled = !supported || recording || inFlight || Boolean(check.dataset.pending);
     stop.disabled = !recording;
     submit.disabled = recording || inFlight || !localAudio || !privacy.checked || !passcode.value.trim();
     check.disabled = inFlight || !check.dataset.pending;
