@@ -254,6 +254,87 @@ test("rejects forged custom-domain suffix, despite matching host", async () => {
   assert.equal(res.statusCode, 403);
 });
 
+test("capture gateway 502 is recovered by authoritative read-only COMPLETED order", async () => {
+  configure();
+  let statusReads = 0;
+  const calls = [];
+  globalThis.fetch = async (url, opts) => {
+    const path = new URL(url).pathname;
+    calls.push({ path, method: opts.method });
+    if (path === "/api/internal/checkout/orders") {
+      return new Response(JSON.stringify({
+        order_id: ID, status: "PAYER_ACTION_REQUIRED", currency: "USD",
+        amount: "5.00", approve_url: APPROVE
+      }), { status: 201 });
+    }
+    if (path.endsWith("/status")) {
+      statusReads++;
+      const done = statusReads >= 2;
+      return new Response(JSON.stringify({
+        order_id: ID, status: done ? "COMPLETED" : "APPROVED",
+        currency: "USD", amount: "5.00",
+        capture_status: done ? "COMPLETED" : null,
+        capture_id: done ? "CAPTURE-RECOVERED-01" : null
+      }), { status: 200 });
+    }
+    if (path.endsWith("/capture")) {
+      return new Response(JSON.stringify({ detail: "upstream capture response error" }), {
+        status: 502
+      });
+    }
+    throw Error("Unexpected test request");
+  };
+  const order = makeResponse();
+  await handler(makeRequest({
+    action: "create", item_code: "financial-literacy-demo", confirm: true
+  }), order);
+  assert.equal(order.statusCode, 201);
+  const cookie = order.headers.get("set-cookie").split(";")[0];
+  const captured = makeResponse();
+  await handler(makeRequest({ action: "capture", confirm: true }, cookie), captured);
+  assert.equal(captured.statusCode, 200);
+  assert.equal(captured.data.status, "COMPLETED");
+  assert.equal(captured.data.capture_status, "COMPLETED");
+  assert.equal(captured.data.capture_id, "CAPTURE-RECOVERED-01");
+  assert.equal(captured.data.recovered, true);
+  assert.equal(calls.filter(x => x.method === "POST" && x.path.endsWith("/capture")).length, 1);
+  assert.equal(statusReads, 2);
+});
+
+test("unconfirmed capture response remains uncertain and never causes second POST", async () => {
+  configure();
+  const calls = [];
+  globalThis.fetch = async (url, opts) => {
+    const path = new URL(url).pathname;
+    calls.push({ path, method: opts.method });
+    if (path === "/api/internal/checkout/orders") {
+      return new Response(JSON.stringify({
+        order_id: ID, status: "CREATED", currency: "USD",
+        amount: "5.00", approve_url: APPROVE
+      }), { status: 201 });
+    }
+    if (path.endsWith("/status")) {
+      return new Response(JSON.stringify({
+        order_id: ID, status: "APPROVED", currency: "USD",
+        amount: "5.00", capture_status: null, capture_id: null
+      }), { status: 200 });
+    }
+    if (path.endsWith("/capture")) throw new Error("simulated network drop");
+    throw Error("Unexpected test request");
+  };
+  const order = makeResponse();
+  await handler(makeRequest({
+    action: "create", item_code: "financial-literacy-demo", confirm: true
+  }), order);
+  const cookie = order.headers.get("set-cookie").split(";")[0];
+  const captured = makeResponse();
+  await handler(makeRequest({ action: "capture", confirm: true }, cookie), captured);
+  assert.equal(captured.statusCode, 503);
+  assert.equal(captured.data.reason, "capture_status_uncertain");
+  assert.equal(calls.filter(x => x.method === "POST" && x.path.endsWith("/capture")).length, 1);
+  assert.equal(calls.filter(x => x.method === "GET" && x.path.endsWith("/status")).length, 2);
+});
+
 test.after(() => {
   globalThis.fetch = originalFetch;
   for (const key of ["BACKEND_URL", "ENABLE_PUBLIC_DEMO_CHECKOUT", "CHECKOUT_SERVICE_KEY", "CHECKOUT_SESSION_SECRET"]) {
