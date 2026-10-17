@@ -62,6 +62,9 @@ def validate_wav(encoded: str) -> bytes:
                     wav.getsampwidth() != 2 or wav.getframerate() != 16000 or
                     duration < 0.4 or duration > 30.0):
                 raise VoiceValidationError("Audio must be 0.4–30s, mono, PCM16, 16 kHz WAV")
+            frames = wav.readframes(wav.getnframes())
+            if len(frames) != wav.getnframes() * 2:
+                raise VoiceValidationError("WAV recording was truncated")
     except (wave.Error, EOFError, OSError) as exc:
         raise VoiceValidationError("Invalid WAV audio") from exc
     return raw
