@@ -139,3 +139,76 @@ def test_api_return_contains_no_paypal_buyer_information():
         assert set(body) == {"order_id", "status", "currency", "amount", "capture_status", "capture_id"}
     finally:
         app.dependency_overrides.clear()
+
+
+def test_capture_reconciles_failed_post_from_read_only_completed_order():
+    """PayPal completed the capture although its POST response was a 502."""
+    events = []
+    get_count = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal get_count
+        if request.url.path == "/v1/oauth2/token":
+            return httpx.Response(200, json={"access_token": "mock-token"})
+        events.append(request.method)
+        if request.method == "GET":
+            get_count += 1
+            if get_count == 1:
+                return httpx.Response(200, json=order())
+            return httpx.Response(200, json=order(status="COMPLETED", capture=CAPTURE))
+        if request.method == "POST":
+            return httpx.Response(502, json={"message": "unreliable capture response"})
+        return httpx.Response(405)
+
+    gateway = PayPalSandboxGateway("fake", "fake", transport=httpx.MockTransport(handler))
+    result = asyncio.run(PayPalSandboxCheckout(gateway).capture_approved_order(ORDER_ID))
+    assert result.status == result.capture_status == "COMPLETED"
+    assert result.capture_id == CAPTURE["id"]
+    assert events == ["GET", "POST", "GET"]
+    assert events.count("POST") == 1
+
+
+def test_capture_reconciles_incomplete_post_body_after_real_completion():
+    """The immediate PayPal POST result can lack detail present in the GET."""
+    events = []
+    get_count = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal get_count
+        if request.url.path == "/v1/oauth2/token":
+            return httpx.Response(200, json={"access_token": "mock-token"})
+        events.append(request.method)
+        if request.method == "GET":
+            get_count += 1
+            return httpx.Response(200, json=order(
+                status="APPROVED" if get_count == 1 else "COMPLETED",
+                capture=None if get_count == 1 else CAPTURE
+            ))
+        if request.method == "POST":
+            return httpx.Response(201, json={"id": ORDER_ID, "status": "COMPLETED"})
+        return httpx.Response(405)
+
+    gateway = PayPalSandboxGateway("fake", "fake", transport=httpx.MockTransport(handler))
+    result = asyncio.run(PayPalSandboxCheckout(gateway).capture_approved_order(ORDER_ID))
+    assert result.capture_id == CAPTURE["id"]
+    assert events == ["GET", "POST", "GET"]
+
+
+def test_capture_uncertain_when_recheck_is_still_approved_no_second_post():
+    events = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/oauth2/token":
+            return httpx.Response(200, json={"access_token": "mock-token"})
+        events.append(request.method)
+        if request.method == "GET":
+            return httpx.Response(200, json=order())
+        if request.method == "POST":
+            return httpx.Response(503, json={"message": "pending"})
+        return httpx.Response(405)
+
+    gateway = PayPalSandboxGateway("fake", "fake", transport=httpx.MockTransport(handler))
+    with pytest.raises(Exception) as exc:
+        asyncio.run(PayPalSandboxCheckout(gateway).capture_approved_order(ORDER_ID))
+    assert "uncertain" in str(exc.value).lower()
+    assert events == ["GET", "POST", "GET"]
