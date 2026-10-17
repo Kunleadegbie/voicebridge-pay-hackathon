@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: node --check app.js && node --check checkout.js && node --check payment-result.js && node --check api/status.js && node --check api/checkout.js && npm test
+      - run: node --check app.js && node --check checkout.js && node --check natlas-voice.js && node --check payment-result.js && node --check api/voice.js && node --check api/status.js && node --check api/checkout.js && npm test
         working-directory: web
 
   docker-backend:
