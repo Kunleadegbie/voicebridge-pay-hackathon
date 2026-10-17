@@ -11,7 +11,7 @@ import secrets
 from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from .paypal import PayPalSandboxError, PayPalSandboxGateway
 from .checkout import BuyerApprovalRequired, InvalidDemoOrder, PayPalSandboxCheckout
@@ -193,6 +193,7 @@ async def web_capture_order(
 # This is completely separated from PayPal and the original VoiceBridge AI.
 # No speech transcript or voice command can authorize or capture payment.
 class VoiceAudioRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     language: Literal["en-NG", "yo-NG", "ha-NG", "ig-NG"]
     audio_base64: str = Field(min_length=56, max_length=1_420_000)
     confirm_privacy: Literal[True]
