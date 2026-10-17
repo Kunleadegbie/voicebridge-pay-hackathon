@@ -94,6 +94,15 @@ async function upstream(config, method, path, body) {
   return data;
 }
 
+// Fixed diagnostic categories only; never log PayPal payloads, approval URLs,
+// tokens, cookies, service keys or customer identifiers.
+function checkoutResponseError(reason) {
+  const error = new Error("sandbox_checkout_validation_failed");
+  error.status = 503;
+  error.reason = reason;
+  return error;
+}
+
 function verified(data, orderId) {
   return data?.order_id === orderId &&
     data.currency === "USD" &&
@@ -159,19 +168,31 @@ export default async function handler(req, res) {
           item_code: "financial-literacy-demo",
           checkout_origin: checkoutOrigin
         });
-      if (!ORDER_RE.test(created.order_id) || created.currency !== "USD" ||
-          String(created.amount) !== "5.00" || created.status !== "CREATED") {
-        throw new Error("Unexpected sandbox order data");
+      // PayPal Orders v2 can create wallet orders in PAYER_ACTION_REQUIRED
+      // (rather than CREATED) when payment_source.paypal is supplied.
+      // The buyer must still approve on PayPal. Neither status allows capture.
+      if (!ORDER_RE.test(created?.order_id) || created.currency !== "USD" ||
+          String(created.amount) !== "5.00") {
+        throw checkoutResponseError("sandbox_order_response_invalid");
       }
-      const approve = new URL(created.approve_url);
+      if (!["CREATED", "PAYER_ACTION_REQUIRED"].includes(created.status)) {
+        throw checkoutResponseError("sandbox_order_status_unexpected");
+      }
+      // Never redirect to an arbitrary URL, even if Railway or PayPal
+      // returned an unexpected value. This also avoids leaking a token.
+      let approve;
+      try { approve = new URL(created.approve_url); }
+      catch { throw checkoutResponseError("sandbox_approval_link_invalid"); }
       if (approve.origin !== "https://www.sandbox.paypal.com" ||
-          approve.username || approve.password) {
-        throw new Error("Sandbox approval URL rejected");
+          approve.username || approve.password ||
+          !approve.pathname.startsWith("/checkoutnow") ||
+          !approve.searchParams.has("token")) {
+        throw checkoutResponseError("sandbox_approval_link_invalid");
       }
       const cookie = COOKIE_NAME + "=" + sign(created.order_id, config.secret) +
         "; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=" + TTL;
       respond(res, 201, {
-        ok: true, order_id: created.order_id, status: "CREATED",
+        ok: true, order_id: created.order_id, status: created.status,
         amount: "5.00", currency: "USD", approve_url: approve.toString()
       }, cookie);
       return;
@@ -219,6 +240,16 @@ export default async function handler(req, res) {
     }
     respond(res, 200, { ok: true, ...captured });
   } catch (error) {
+    // Log only a fixed internal failure category; never log raw exception,
+    // upstream content, sandbox approval URLs, tokens, cookies or credentials.
+    const safeFailures = [
+      "sandbox_order_response_invalid",
+      "sandbox_order_status_unexpected",
+      "sandbox_approval_link_invalid"
+    ];
+    if (safeFailures.includes(error?.reason)) {
+      console.error("stage3d_checkout_validation:", error.reason);
+    }
     // Never echo PayPal error bodies, credentials or private headers.
     respond(res, error.status || 503, {
       ok: false, reason: error.reason || "sandbox_service_unavailable"
