@@ -265,3 +265,58 @@ test("end session clears signed cookie", async () => {
   assert.equal(response.statusCode, 200);
   assert.match(response.headers["set-cookie"], /Max-Age=0/);
 });
+
+
+test("reviewed N-ATLAS question uses only informational source metadata", async () => {
+  const cookie = await login();
+  const calls = [];
+  globalThis.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    calls.push({ url, body });
+    return new Response(JSON.stringify(answer("A receipt may show payment details.")), { status: 200 });
+  };
+  const response = await call({
+    action: "ask", source_type: "reviewed_transcript",
+    question: "What is a payment receipt?", request_id: requestId1,
+    history: [], context_proof: "", confirm_privacy: true
+  }, cookie);
+  assert.equal(response.statusCode, 200);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].body.source_type, "reviewed_transcript");
+  assert.equal(calls[0].body.language, "en-NG");
+  assert.equal(calls[0].body.audio_base64, undefined);
+  assert.equal(calls[0].body.amount, undefined);
+  assert.equal(calls[0].body.capture, undefined);
+  assert.equal(response.payload.payment_action_allowed, false);
+});
+
+test("forged unreviewed_audio source is rejected before Railway", async () => {
+  const cookie = await login();
+  globalThis.fetch = async () => { throw Error("Must not contact Railway"); };
+  const response = await call({
+    action: "ask", source_type: "unreviewed_audio",
+    question: "What is a payment receipt?", request_id: requestId1,
+    history: [], context_proof: "", confirm_privacy: true
+  }, cookie);
+  assert.equal(response.statusCode, 422);
+  assert.equal(response.payload.reason, "assistant_question_invalid");
+});
+
+test("reviewed speech cannot add audio, payment, approval or recording fields", async () => {
+  const cookie = await login();
+  globalThis.fetch = async () => { throw Error("Must not contact Railway"); };
+  const base = {
+    action: "ask", source_type: "reviewed_transcript",
+    question: "What is a digital wallet?", request_id: requestId1,
+    history: [], context_proof: "", confirm_privacy: true
+  };
+  for (const injected of [
+    { audio_base64: "fake-audio" },
+    { payment_action: "capture" },
+    { amount: "50000" },
+    { approve: true }
+  ]) {
+    const result = await call({ ...base, ...injected }, cookie);
+    assert.equal(result.statusCode, 400);
+  }
+});
