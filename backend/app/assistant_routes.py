@@ -28,8 +28,14 @@ from .assistant_safety import guard_question
 router = APIRouter(prefix="/api/internal/assistant", tags=["internal-assistant"])
 _BANNER = "Educational AI assistance only. No account access or payment authorisation."
 _FALSE_COMPLETION = re.compile(
+    # Reject AI assertions of access or completion of a SPECIFIC user's
+    # transaction. Conservative false positives are acceptable for this pilot.
     r"\b(?:i|we)\s+(?:have|'ve)\s+(?:sent|transferred|captured|refunded|approved|"
-    r"verified|completed)\s+(?:your|the|a)\s+(?:payment|transfer|refund)\b",
+    r"verified|completed)\s+(?:your|the|a)\s+(?:payment|transfer|refund)\b|"
+    r"\b(?:your|the)\s+(?:payment|transfer|refund|transaction)\s+"
+    r"(?:has\s+(?:been\s+)?|is\s+|was\s+)"
+    r"(?:successfully\s+)?(?:completed|captured|approved|confirmed|"
+    r"sent|refunded|processed|successful)\b",
     re.I,
 )
 
