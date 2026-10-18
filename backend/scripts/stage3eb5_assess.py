@@ -13,6 +13,21 @@ import json
 import sys
 from pathlib import Path
 
+REQUIRED_RELEASE_CHECKS = frozenset({
+    "provider_credentials_reviewed",
+    "provider_privacy_approved",
+    "provider_budget_alerts_verified",
+    "passcode_rate_limit_verified",
+    "session_replay_controls_verified",
+    "provider_live_smoke_pass",
+    "paypal_regression_pass",
+    "natlas_regression_pass",
+    "mobile_browser_pass",
+    "accessibility_review_pass",
+    "security_privacy_signoff",
+    "owner_deployment_approval",
+})
+
 GROUPS = {
     "financial_qa": ("Q", 40, 36),
     "contextual_dialogues": ("D", 10, 9),
@@ -59,9 +74,11 @@ def assess(report: dict, manifest: dict) -> dict:
             "meets_threshold": passed >= passing_threshold and unscored == 0
         }
     controls = report.get("release_checks")
-    if not isinstance(controls, dict) or not controls:
+    if not isinstance(controls, dict):
         valid_report = False
         controls = {}
+    if set(controls) != REQUIRED_RELEASE_CHECKS:
+        valid_report = False
     controls_passed = 0
     for value in controls.values():
         if not isinstance(value, dict):
