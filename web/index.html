@@ -111,6 +111,10 @@
         <strong>N-ATLAS transcript</strong>
         <p id="natlas-result" aria-live="polite">No transcription yet.</p>
       </div>
+      <div class="pilot-actions">
+        <button id="natlas-send-to-assistant" class="secondary-button" type="button" disabled>Use reviewed transcript as AI question</button>
+      </div>
+      <p id="natlas-handoff-status" class="field-help" role="status" aria-live="polite">Only completed Nigerian English transcripts can be copied to the English financial assistant during this pilot. First unlock the separate assistant; then inspect, edit and confirm the transcript before explicitly asking. Copying does not contact AI or spend either quota.</p>
     </section>
     <section class="checkout-card financial-assistant" aria-labelledby="assistant-title">
       <p class="eyebrow">Stage 3E-B · Restricted Financial Intelligence Assistant</p>
@@ -145,6 +149,11 @@
       <form id="assistant-form" novalidate>
         <label for="assistant-question">Your financial education question (Nigerian English)</label>
         <textarea id="assistant-question" rows="3" maxlength="500" placeholder="Example: What should I check before a digital payment?" disabled></textarea>
+        <p id="assistant-source-status" class="field-help" role="status" aria-live="polite">Type a question here, or import a completed Nigerian English N-ATLAS transcript using the separate button in the Speech Lab. An import never submits the question automatically.</p>
+        <label class="checkbox-row" for="assistant-review">
+          <input id="assistant-review" type="checkbox" disabled>
+          <span>For an imported transcript: I have reviewed this text, corrected any recognition errors and confirm it is the exact English question I want to ask. This is separate from consent to use the AI provider.</span>
+        </label>
         <label class="checkbox-row" for="assistant-privacy">
           <input id="assistant-privacy" type="checkbox" disabled>
           <span>I consent to send my question and recent conversation context to the selected external AI provider for educational answers. I will not enter private financial or identity information. The assistant cannot authorise payments.</span>
