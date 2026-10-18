@@ -76,7 +76,7 @@ RECORDS = (
     {
         "id": "fees",
         "title": "Fees and charges",
-        "keywords": ("fee", "charge", "cost", "pricing", "exchange rate"),
+        "keywords": ("fee", "fees", "charge", "charges", "payment charges", "cost", "pricing", "exchange rate"),
         "text": (
             "Fees may vary by provider, country, channel, currency and transaction. "
             "Review the provider's current fee disclosures before authorising any "
