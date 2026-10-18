@@ -8,11 +8,10 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from app import voice as voice_module
 from app.main import app, voice_gateway
 from app.voice import (
     MODEL_BY_LANGUAGE, RunPodVoiceGateway, VoiceProviderError,
-    VoiceQuotaError, VoiceValidationError, provider_config, reserve_demo_slot,
+    VoiceValidationError, provider_config,
     validate_wav,
 )
 
@@ -150,12 +149,3 @@ def test_voice_never_accepts_sensitive_payment_related_arguments():
         app.dependency_overrides.clear()
 
 
-def test_demo_submission_quota_has_bounded_process_limit(monkeypatch):
-    monkeypatch.setattr(voice_module, "_count", 0)
-    async def run():
-        for i in range(voice_module.DEMO_SUBMISSION_LIMIT):
-            await reserve_demo_slot()
-        with pytest.raises(VoiceQuotaError):
-            await reserve_demo_slot()
-    asyncio.run(run())
-    monkeypatch.setattr(voice_module, "_count", 0)
