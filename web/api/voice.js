@@ -147,7 +147,7 @@ export default async function handler(req, res) {
           !Number.isSafeInteger(capacity.lifetime_remaining) ||
           capacity.lifetime_remaining < 0 ||
           typeof capacity.reset_at_utc !== "string" ||
-          !/^\\d{4}-\\d{2}-\\d{2}T00:00:00Z$/.test(capacity.reset_at_utc)) {
+          !/^\d{4}-\d{2}-\d{2}T00:00:00Z$/.test(capacity.reset_at_utc)) {
         respond(res, 503, { ok: false, reason: "voice_quota_unavailable" });
         return;
       }
