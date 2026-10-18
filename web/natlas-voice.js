@@ -12,6 +12,8 @@
   const capacity = $("natlas-capacity");
   const capacityStatus = $("natlas-capacity-status");
   const output = $("natlas-result");
+  const handoff = $("natlas-send-to-assistant");
+  const handoffStatus = $("natlas-handoff-status");
   const status = $("natlas-status");
   const language = $("natlas-language");
   const passcode = $("natlas-passcode");
@@ -29,6 +31,13 @@
   let capacityExhausted = false;
   let polls = 0;
   let timer = null;
+  // Browser-only, non-authoritative handoff cache. No audio or credentials.
+  // The server still treats reviewed speech as user-supplied educational text.
+  let verifiedForHandoff = null;
+  function invalidateHandoff() {
+    verifiedForHandoff = null;
+    if (handoff) handoff.disabled = true;
+  }
 
   function message(value) { status.textContent = value; }
   function controls() {
@@ -38,6 +47,8 @@
       !localAudio || !privacy.checked || !passcode.value.trim();
     check.disabled = inFlight || !check.dataset.pending;
     capacity.disabled = recording || inFlight || !passcode.value.trim();
+    if (handoff) handoff.disabled = !verifiedForHandoff || recording || inFlight ||
+      Boolean(check.dataset.pending) || language.value !== "en-NG";
   }
   function clearLocalAudio() { localAudio = null; chunks = []; controls(); }
   privacy.addEventListener("change", controls);
@@ -46,6 +57,10 @@
     controls();
   });
   language.addEventListener("change", () => {
+    invalidateHandoff();
+    output.textContent = "No transcription for the newly selected language.";
+    if (handoffStatus) handoffStatus.textContent =
+      "Language changed. Record and complete a new Nigerian English transcription before importing.";
     clearLocalAudio();
     privacy.checked = false;
     message("Language changed. Record a new short sample; spoken words never approve a payment.");
@@ -127,7 +142,11 @@
   }
 
   start.addEventListener("click", async () => {
-    if (recording || inFlight || !supported) return;
+    if (recording || inFlight || !supported || check.dataset.pending) return;
+    invalidateHandoff();
+    if (handoffStatus) handoffStatus.textContent =
+      "A new recording was started. Any previous transcript is no longer eligible for import.";
+    output.textContent = "New recording in progress.";
     try {
       clearLocalAudio();
       stream = await navigator.mediaDevices.getUserMedia({
@@ -221,8 +240,24 @@
         message("N-ATLAS transcription completed. Model: " + result.model_id +
           ". Review the transcript for accuracy; it cannot authorize a payment.");
         delete check.dataset.pending;
+        invalidateHandoff();
+        const verifiedEnglish = result.language === "en-NG" &&
+          result.model_id === "NCAIR1/NigerianAccentedEnglish" &&
+          language.value === "en-NG" &&
+          typeof result.transcript === "string" &&
+          result.transcript.trim().length >= 3 &&
+          result.transcript.length <= 1000;
+        if (verifiedEnglish) {
+          verifiedForHandoff = { text: result.transcript.trim(), language: result.language };
+          if (handoffStatus) handoffStatus.textContent =
+            "Nigerian English transcription completed. Unlock the financial assistant, then click Use reviewed transcript as AI question. You must edit and confirm the text before Ask.";
+        } else if (handoffStatus) {
+          handoffStatus.textContent =
+            "This transcript is shown for review but is not eligible for English-only AI conversation. The Yoruba, Hausa and Igbo handoff will require separately approved language validation.";
+        }
         clearLocalAudio();
       } else if (result.status === "failed") {
+        invalidateHandoff();
         delete check.dataset.pending;
         message("The N-ATLAS transcription job failed. No payment action was taken.");
       } else {
@@ -241,9 +276,23 @@
     }
   }
   check.addEventListener("click", () => { void checkStatus(); });
+  if (handoff) handoff.addEventListener("click", () => {
+    if (!verifiedForHandoff || language.value !== "en-NG" ||
+        recording || inFlight || check.dataset.pending) return;
+    const item = verifiedForHandoff;
+    // A deliberate COPY ONLY. It does not call /api/assistant, RunPod or PayPal.
+    document.dispatchEvent(new CustomEvent("voicebridge:natlas-transcript-handoff", {
+      detail: { text: item.text, language: item.language }
+    }));
+    if (handoffStatus) handoffStatus.textContent =
+      "Transfer requested. Review the Financial Intelligence Assistant section below. No AI request has been submitted.";
+  });
   submit.addEventListener("click", async () => {
     if (!localAudio || !privacy.checked || !passcode.value.trim() || inFlight) return;
     inFlight = true;
+    invalidateHandoff();
+    if (handoffStatus) handoffStatus.textContent =
+      "Waiting for a newly completed Nigerian English transcript before import.";
     controls();
     message("Submitting your recording to the restricted N-ATLAS test service…");
     output.textContent = "";
