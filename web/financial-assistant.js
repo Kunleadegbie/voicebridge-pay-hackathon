@@ -15,6 +15,8 @@
   const status = $("assistant-status");
   const messages = $("assistant-messages");
   const question = $("assistant-question");
+  const sourceStatus = $("assistant-source-status");
+  const review = $("assistant-review");
   const privacy = $("assistant-privacy");
   const form = $("assistant-form");
   const ask = $("assistant-ask");
@@ -26,6 +28,8 @@
   let uncertainSubmission = false;
   let history = [];
   let contextProof = "";
+  let imported = false;
+  let reviewed = false;
 
   function setStatus(message) { status.textContent = message; }
   function controls() {
@@ -35,8 +39,12 @@
     capacity.disabled = inFlight || !unlocked;
     question.disabled = inFlight || !unlocked || uncertainSubmission;
     privacy.disabled = inFlight || !unlocked || uncertainSubmission;
+    if (review) {
+      review.disabled = inFlight || !unlocked || uncertainSubmission || !imported;
+      if (!imported) review.checked = false;
+    }
     ask.disabled = inFlight || !unlocked || uncertainSubmission ||
-      !privacy.checked || question.value.trim().length < 3 ||
+      (imported && !reviewed) || !privacy.checked || question.value.trim().length < 3 ||
       question.value.length > 500 ||
       !(globalThis.crypto && typeof globalThis.crypto.randomUUID === "function");
     for (const button of suggestions) button.disabled = inFlight || !unlocked ||
@@ -46,6 +54,11 @@
     history = [];
     contextProof = "";
     uncertainSubmission = false;
+    imported = false;
+    reviewed = false;
+    if (review) review.checked = false;
+    if (sourceStatus) sourceStatus.textContent =
+      "Type a question, or import a completed Nigerian English N-ATLAS transcript. Importing does not spend an AI request.";
     question.value = "";
     messages.replaceChildren();
     const empty = document.createElement("p");
@@ -120,14 +133,68 @@
     uncertainSubmission = false;
     history = [];
     contextProof = "";
+    imported = false;
+    reviewed = false;
+    if (review) review.checked = false;
     accessStatus.textContent = "Session expired. Enter your passcode to unlock again.";
     controls();
     return true;
   }
 
   passcode.addEventListener("input", controls);
-  question.addEventListener("input", controls);
+  question.addEventListener("input", () => {
+    // Every edit invalidates previous review confirmation.
+    if (imported) {
+      reviewed = false;
+      if (review) review.checked = false;
+      if (sourceStatus) sourceStatus.textContent =
+        "You edited the imported question. Inspect the full text and confirm it again before Ask.";
+    }
+    controls();
+  });
   privacy.addEventListener("change", controls);
+  if (review) review.addEventListener("change", () => {
+    reviewed = Boolean(imported && review.checked);
+    if (sourceStatus && imported) sourceStatus.textContent = reviewed ?
+      "Imported Nigerian English text reviewed. AI consent and a separate Ask click are still required." :
+      "Review and correct this question, then confirm the exact text.";
+    controls();
+  });
+  document.addEventListener("voicebridge:natlas-transcript-handoff", event => {
+    const candidate = event.detail;
+    // User-facing convenience transfer only; never authoritative provenance
+    // or a source of new AI or payment execution privileges.
+    if (candidate?.language !== "en-NG" ||
+        typeof candidate.text !== "string" ||
+        candidate.text.trim().length < 3 || candidate.text.length > 1000) return;
+    if (!unlocked) {
+      accessStatus.textContent =
+        "Unlock the Financial Intelligence Assistant first, then click Use reviewed transcript as AI question again in the Speech Lab.";
+      passcode.focus();
+      return;
+    }
+    if (inFlight || uncertainSubmission) {
+      setStatus("Finish or clear the current AI submission before importing a transcript.");
+      return;
+    }
+    // New context: avoid treating unrelated previous dialogue as a voice intent.
+    resetConversation();
+    if (candidate.text.length > 500) {
+      if (sourceStatus) sourceStatus.textContent =
+        "This transcript exceeds the 500-character AI question limit. Please type a shorter English question. No text was sent.";
+      return;
+    }
+    imported = true;
+    reviewed = false;
+    question.value = candidate.text.trim();
+    if (review) review.checked = false;
+    if (sourceStatus) sourceStatus.textContent =
+      "N-ATLAS Nigerian English transcript copied locally. Inspect, edit and confirm the text; separately consent to AI processing, then explicitly click Ask. No AI job has been submitted.";
+    setStatus("Speech transcript copied for review. No AI quota consumed.");
+    controls();
+    question.focus();
+    question.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  });
 
   unlock.addEventListener("click", async () => {
     if (inFlight || unlocked || !passcode.value.trim()) return;
