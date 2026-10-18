@@ -302,3 +302,90 @@ def test_false_payment_confirmation_output_is_suppressed(monkeypatch):
         return {}
     monkeypatch.setattr("app.assistant_routes.reserve_assistant_quota", reserve)
     assert CLIENT.post("/api/internal/assistant/respond", json=SAMPLE).status_code == 502
+
+
+def test_atomic_quota_daily_lifetime_and_duplicate_under_concurrency(monkeypatch):
+    """Simulate Upstash EVAL atomically; no Redis or provider credentials used."""
+    monkeypatch.setenv("VOICE_QUOTA_REDIS_REST_URL", STORE)
+    monkeypatch.setenv("VOICE_QUOTA_REDIS_REST_TOKEN", TOKEN)
+    monkeypatch.setenv("ASSISTANT_DAILY_LIMIT", "2")
+    monkeypatch.setenv("ASSISTANT_TOTAL_LIMIT", "3")
+    memory = {}
+    real_client = httpx.AsyncClient
+
+    def provider(request):
+        command = json.loads(request.content)
+        script = command[1]
+        keys_count = int(command[2])
+        keys = command[3:3 + keys_count]
+        arguments = command[3 + keys_count:]
+        assert all(key.startswith("vbpay:{assistant-pilot}:") for key in keys)
+        day = memory.get(keys[0], 0)
+        total = memory.get(keys[1], 0)
+        if script == assistant_quota._READ_SCRIPT:
+            result = [day, total]
+        else:
+            assert script == assistant_quota._RESERVE_SCRIPT
+            if keys[2] in memory:
+                result = [2, day, total]
+            elif day >= int(arguments[0]) or total >= int(arguments[1]):
+                result = [0, day, total]
+            else:
+                memory[keys[0]] = day + 1
+                memory[keys[1]] = total + 1
+                memory[keys[2]] = "reserved"
+                result = [1, day + 1, total + 1]
+        return httpx.Response(200, json={"result": result})
+
+    monkeypatch.setattr(
+        assistant_quota.httpx, "AsyncClient",
+        lambda **kwargs: real_client(
+            transport=httpx.MockTransport(provider), **kwargs
+        )
+    )
+    first_day = datetime(2026, 10, 18, 17, tzinfo=timezone.utc)
+    ids = [str(uuid.uuid4()) for _ in range(5)]
+
+    async def exercise():
+        outcomes = await asyncio.gather(
+            *(assistant_quota.reserve_assistant_quota(key, now=first_day)
+              for key in ids),
+            return_exceptions=True,
+        )
+        assert sum(isinstance(outcome, dict) for outcome in outcomes) == 2
+        assert sum(isinstance(outcome, assistant_quota.AssistantQuotaReached)
+                   for outcome in outcomes) == 3
+        current = await assistant_quota.assistant_quota_status(now=first_day)
+        assert current["remaining"] == 0
+        assert current["daily_used"] == 2
+        assert current["lifetime_remaining"] == 1
+        with pytest.raises(assistant_quota.AssistantDuplicateRequest):
+            await assistant_quota.reserve_assistant_quota(ids[0], now=first_day)
+        following_day = datetime(2026, 10, 19, 8, tzinfo=timezone.utc)
+        result = await assistant_quota.reserve_assistant_quota(
+            str(uuid.uuid4()), now=following_day
+        )
+        assert result["lifetime_remaining"] == 0
+        with pytest.raises(assistant_quota.AssistantQuotaReached):
+            await assistant_quota.reserve_assistant_quota(
+                str(uuid.uuid4()), now=following_day
+            )
+
+    asyncio.run(exercise())
+    assert memory[assistant_quota._KEY_PREFIX + "lifetime"] == 3
+
+
+def test_redis_service_error_never_returns_capacity(monkeypatch):
+    monkeypatch.setenv("VOICE_QUOTA_REDIS_REST_URL", STORE)
+    monkeypatch.setenv("VOICE_QUOTA_REDIS_REST_TOKEN", TOKEN)
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        assistant_quota.httpx, "AsyncClient",
+        lambda **kwargs: real_client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(503)
+            ), **kwargs
+        )
+    )
+    with pytest.raises(assistant_quota.AssistantQuotaUnavailable):
+        asyncio.run(assistant_quota.assistant_quota_status())
