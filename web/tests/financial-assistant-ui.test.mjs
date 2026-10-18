@@ -52,18 +52,26 @@ function ui(fetchImpl) {
     "assistant-passcode", "assistant-start", "assistant-end",
     "assistant-new", "assistant-capacity", "assistant-capacity-status",
     "assistant-access-status", "assistant-status", "assistant-messages",
-    "assistant-question", "assistant-privacy", "assistant-form",
-    "assistant-ask"
+    "assistant-question", "assistant-review", "assistant-source-status",
+    "assistant-privacy", "assistant-form", "assistant-ask"
   ];
   const els = Object.fromEntries(ids.map(id => [id, new Element()]));
   const examples = [new Element(), new Element(), new Element()];
   examples[0].dataset.question = "What is a digital payment?";
   examples[1].dataset.question = "How can I avoid payment scams?";
   examples[2].dataset.question = "What is a payment receipt?";
+  const documentListeners = {};
   const doc = {
     getElementById(id) { return els[id] || null; },
     querySelectorAll(selector) { return selector === ".assistant-example" ? examples : []; },
-    createElement() { return new Element(); }
+    createElement() { return new Element(); },
+    addEventListener(type, listener) {
+      (documentListeners[type] ||= []).push(listener);
+    }
+  };
+  const handoff = async (text, language = "en-NG") => {
+    for (const callback of documentListeners["voicebridge:natlas-transcript-handoff"] || [])
+      await callback({ detail: { text, language } });
   };
   const requests = [];
   const context = {
@@ -79,7 +87,7 @@ function ui(fetchImpl) {
     }
   };
   runInNewContext(script, context, { timeout: 1000 });
-  return { els, examples, requests };
+  return { els, examples, requests, handoff };
 }
 function ok(body) {
   return { ok: true, status: 200, json: async () => ({ ok: true, ...body }) };
@@ -197,4 +205,100 @@ test("session ending clears conversation and does not initiate payments", async 
   assert.equal(els["assistant-question"].disabled, true);
   assert.equal(els["assistant-passcode"].value, "");
   assert.deepEqual(requests.map(x => x.action), ["start", "end"]);
+});
+
+test("import while assistant locked requires unlock and never submits", async () => {
+  const { els, requests, handoff } = ui(async body => {
+    if (body.action === "start") return ok({ status: "ready" });
+    throw Error("Import may not contact any provider or payment service");
+  });
+  await handoff("What is a digital payment?");
+  assert.match(els["assistant-access-status"].textContent, /Unlock/);
+  assert.equal(els["assistant-question"].value, "");
+  assert.equal(requests.length, 0);
+  els["assistant-passcode"].value = "private";
+  await els["assistant-start"].emit("click");
+  await handoff("What is a digital payment?", "ha-NG");
+  assert.equal(els["assistant-question"].value, "");
+  assert.equal(requests.length, 1);
+});
+
+test("completed en-NG transcript copies as editable text, requires review plus AI consent", async () => {
+  const { els, requests, handoff } = ui(async body => {
+    if (body.action === "start") return ok({ status: "ready" });
+    if (body.action === "ask") return ok({
+      status: "answered", answer: "A receipt shows payment details.",
+      language: "en-NG", payment_action_allowed: false,
+      history: [
+        { role: "user", content: body.question },
+        { role: "assistant", content: "A receipt shows payment details." }
+      ],
+      context_proof: "signed-context-placeholder"
+    });
+    throw Error("Only deliberate ask may call AI");
+  });
+  els["assistant-passcode"].value = "private";
+  await els["assistant-start"].emit("click");
+  await handoff("What is a payment receive?");
+  assert.equal(els["assistant-question"].value, "What is a payment receive?");
+  assert.equal(els["assistant-review"].disabled, false);
+  assert.equal(els["assistant-ask"].disabled, true);
+  assert.deepEqual(requests.map(x => x.action), ["start"]);
+  // Correct an ASR substitution and explicitly reconfirm it.
+  els["assistant-question"].value = "What is a payment receipt?";
+  await els["assistant-question"].emit("input");
+  els["assistant-privacy"].checked = true;
+  await els["assistant-privacy"].emit("change");
+  assert.equal(els["assistant-ask"].disabled, true);
+  els["assistant-review"].checked = true;
+  await els["assistant-review"].emit("change");
+  assert.equal(els["assistant-ask"].disabled, false);
+  // Editing after review must revoke the approval.
+  els["assistant-question"].value = "What is a receipt?";
+  await els["assistant-question"].emit("input");
+  assert.equal(els["assistant-review"].checked, false);
+  assert.equal(els["assistant-ask"].disabled, true);
+  els["assistant-review"].checked = true;
+  await els["assistant-review"].emit("change");
+  await els["assistant-form"].emit("submit");
+  assert.deepEqual(requests.map(x => x.action), ["start", "ask"]);
+  assert.equal(requests[1].source_type, "reviewed_transcript");
+  assert.equal(requests[1].question, "What is a receipt?");
+  assert.equal(els["assistant-review"].checked, false);
+  assert.match(els["assistant-source-status"].textContent, /Previous question answered/);
+});
+
+test("oversized transcript does not truncate, guess or submit AI question", async () => {
+  const { els, requests, handoff } = ui(async body => {
+    if (body.action === "start") return ok({ status: "ready" });
+    throw Error("No AI call authorised");
+  });
+  els["assistant-passcode"].value = "private";
+  await els["assistant-start"].emit("click");
+  await handoff("X".repeat(520));
+  assert.equal(els["assistant-question"].value, "");
+  assert.match(els["assistant-source-status"].textContent, /500-character/);
+  assert.equal(els["assistant-ask"].disabled, true);
+  assert.equal(requests.length, 1);
+});
+
+test("example and New conversation remove imported review state without spending quota", async () => {
+  const { els, requests, handoff, examples } = ui(async body => {
+    if (body.action === "start") return ok({ status: "ready" });
+    throw Error("No AI request authorised");
+  });
+  els["assistant-passcode"].value = "private";
+  await els["assistant-start"].emit("click");
+  await handoff("What is a bank transfer?");
+  els["assistant-review"].checked = true;
+  await els["assistant-review"].emit("change");
+  await examples[0].emit("click");
+  assert.equal(els["assistant-review"].checked, false);
+  assert.equal(els["assistant-review"].disabled, true);
+  assert.equal(els["assistant-question"].value, "What is a digital payment?");
+  await handoff("What is a payment receipt?");
+  await els["assistant-new"].emit("click");
+  assert.equal(els["assistant-question"].value, "");
+  assert.equal(els["assistant-review"].disabled, true);
+  assert.deepEqual(requests.map(x => x.action), ["start"]);
 });
