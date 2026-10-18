@@ -68,8 +68,8 @@ def _configuration() -> tuple[str, str, int, int]:
     parts = urlsplit(url)
     if (
         parts.scheme != "https"
-        or not re.fullmatch(r"[a-z0-9-]+\\.upstash\\.io", parts.hostname or "")
-        or parts.port is not None
+        or not re.fullmatch(r"[a-z0-9-]+\.upstash\.io", parts.hostname or "")
+        or parts.netloc != parts.hostname
         or parts.username is not None
         or parts.password is not None
         or parts.path not in ("", "/")
