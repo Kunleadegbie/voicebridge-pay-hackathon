@@ -33,7 +33,7 @@ RECORDS = (
     {
         "id": "cards",
         "title": "Card payments",
-        "keywords": ("card payment", "debit card", "credit card", "card"),
+        "keywords": ("card payment", "debit card", "credit card", "card", "cvv", "card details"),
         "text": (
             "Card payments use a payment card through a merchant or payment service. "
             "Never share the full card number, CVV, PIN, password or OTP with this "
@@ -43,7 +43,7 @@ RECORDS = (
     {
         "id": "wallets",
         "title": "Digital wallets",
-        "keywords": ("mobile wallet", "digital wallet", "e-wallet", "wallet"),
+        "keywords": ("mobile wallet", "mobile wallets", "digital wallet", "digital wallets", "e-wallet", "wallet", "wallets"),
         "text": (
             "A digital wallet is an electronic service that can store payment "
             "methods or value and help users make transactions where supported. "
