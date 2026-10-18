@@ -17,8 +17,10 @@ from .paypal import PayPalSandboxError, PayPalSandboxGateway
 from .checkout import BuyerApprovalRequired, InvalidDemoOrder, PayPalSandboxCheckout
 from .voice import (
     RunPodVoiceGateway, VoiceConfigurationError, VoiceProviderError,
-    VoiceValidationError, VoiceQuotaError, provider_config,
-    reserve_demo_slot, validate_wav,
+    VoiceValidationError, provider_config, validate_wav,
+)
+from .voice_quota import (
+    VoiceQuotaReached, VoiceQuotaUnavailable, reserve_voice_quota, voice_quota_status,
 )
 
 app = FastAPI(title="VoiceBridge AI Pay — Sandbox Backend", version="0.1.0")
@@ -223,14 +225,28 @@ async def voice_submit(
 ) -> dict:
     try:
         validate_wav(body.audio_base64)
-        await reserve_demo_slot()
+        await reserve_voice_quota()
         return await gateway.submit(body.audio_base64, body.language)
     except VoiceValidationError:
         raise HTTPException(status_code=422, detail="Voice recording must be short, PCM16 mono 16kHz WAV") from None
-    except VoiceQuotaError:
+    except VoiceQuotaReached:
         raise HTTPException(status_code=429, detail="Voice demo capacity reached") from None
+    except VoiceQuotaUnavailable:
+        raise HTTPException(status_code=503, detail="Voice demo capacity service unavailable") from None
     except VoiceProviderError:
         raise HTTPException(status_code=502, detail="N-ATLAS transcription service unavailable") from None
+
+
+@app.get("/api/internal/voice/capacity")
+async def voice_capacity(
+    gateway: RunPodVoiceGateway = Depends(voice_gateway),
+) -> dict:
+    # Passcode and origin are checked independently by the Vercel proxy.
+    # No audio submission, RunPod calls or quota reservation occurs here.
+    try:
+        return await voice_quota_status()
+    except VoiceQuotaUnavailable:
+        raise HTTPException(status_code=503, detail="Voice demo capacity service unavailable") from None
 
 
 @app.get("/api/internal/voice/status/{job_id}")
