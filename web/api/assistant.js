@@ -105,7 +105,11 @@ function validHistory(history) {
   return total <= 2800;
 }
 function boundedHistory(turns) {
-  const history = turns.slice(-MAX_HISTORY);
+  // The backend permits at most 1,200 characters per history turn.
+  // Keep a longer answer visible, but bound its future context explicitly.
+  const history = turns.slice(-MAX_HISTORY).map(turn => ({
+    role: turn.role, content: turn.content.slice(0, 1200)
+  }));
   while (history.length > 2 &&
          history.reduce((sum, turn) => sum + turn.content.length, 0) > 2800) {
     history.splice(0, 2);
