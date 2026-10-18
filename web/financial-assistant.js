@@ -235,6 +235,10 @@
       history = [];
       contextProof = "";
       uncertainSubmission = false;
+      imported = false;
+      reviewed = false;
+      if (review) review.checked = false;
+      if (sourceStatus) sourceStatus.textContent = "Session ended. Imported question cleared.";
       question.value = "";
       passcode.value = "";
       messages.replaceChildren();
@@ -281,6 +285,11 @@
     example.addEventListener("click", () => {
       if (!unlocked || inFlight || uncertainSubmission) return;
       question.value = example.dataset.question || "";
+      imported = false;
+      reviewed = false;
+      if (review) review.checked = false;
+      if (sourceStatus) sourceStatus.textContent =
+        "Typed example selected. AI consent and a separate Ask click are required.";
       controls();
       question.focus();
       // Examples only populate input. They never submit a chargeable AI request.
@@ -291,6 +300,7 @@
     event.preventDefault();
     const text = question.value.trim();
     if (!unlocked || inFlight || uncertainSubmission || !privacy.checked ||
+        (imported && !reviewed) ||
         text.length < 3 || text.length > 500 ||
         !globalThis.crypto || typeof globalThis.crypto.randomUUID !== "function") return;
     const requestId = globalThis.crypto.randomUUID();
@@ -300,7 +310,8 @@
     try {
       const result = await request("ask", {
         question: text, request_id: requestId,
-        history, context_proof: contextProof, confirm_privacy: true
+        history, context_proof: contextProof, confirm_privacy: true,
+        source_type: imported ? "reviewed_transcript" : "typed"
       });
       if (!result || !Array.isArray(result.history) ||
           typeof result.context_proof !== "string" || !result.context_proof ||
@@ -314,6 +325,11 @@
       show("assistant", result.answer,
         "AI-generated financial education — not a verified transaction record.");
       question.value = "";
+      imported = false;
+      reviewed = false;
+      if (review) review.checked = false;
+      if (sourceStatus) sourceStatus.textContent =
+        "Previous question answered. Type a follow-up or import another completed Nigerian English transcript.";
       setStatus(
         "Educational answer received. You may ask a follow-up question, or check the independent AI capacity."
       );
