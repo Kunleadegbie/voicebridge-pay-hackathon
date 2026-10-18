@@ -89,6 +89,10 @@ async function callBackend(config, method, path, body) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     if (response.status === 429) return { error: "voice_capacity_reached" };
+    if (response.status === 503 &&
+        data.detail === "Voice demo capacity service unavailable") {
+      return { error: "voice_quota_unavailable" };
+    }
     if (response.status === 422) return { error: "invalid_recording" };
     return { error: "voice_provider_unavailable" };
   }
@@ -125,6 +129,31 @@ export default async function handler(req, res) {
     return;
   }
   try {
+    if (data.action === "capacity") {
+      if (!validateCode(data.demo_passcode, config.pin)) {
+        respond(res, 403, { ok: false, reason: "voice_demo_access_denied" });
+        return;
+      }
+      const upstream = await callBackend(config, "GET", "/api/internal/voice/capacity");
+      if (upstream.error) {
+        respond(res, 503, { ok: false, reason: upstream.error });
+        return;
+      }
+      const capacity = upstream.data;
+      if (!capacity || !["available", "reached"].includes(capacity.status) ||
+          !Number.isSafeInteger(capacity.remaining) || capacity.remaining < 0 ||
+          !Number.isSafeInteger(capacity.daily_limit) || capacity.daily_limit < 1 ||
+          !Number.isSafeInteger(capacity.daily_used) || capacity.daily_used < 0 ||
+          !Number.isSafeInteger(capacity.lifetime_remaining) ||
+          capacity.lifetime_remaining < 0 ||
+          typeof capacity.reset_at_utc !== "string" ||
+          !/^\d{4}-\d{2}-\d{2}T00:00:00Z$/.test(capacity.reset_at_utc)) {
+        respond(res, 503, { ok: false, reason: "voice_quota_unavailable" });
+        return;
+      }
+      respond(res, 200, { ok: true, ...capacity });
+      return;
+    }
     if (data.action === "submit") {
       if (!validateCode(data.demo_passcode, config.pin)) {
         respond(res, 403, { ok: false, reason: "voice_demo_access_denied" });
@@ -146,7 +175,8 @@ export default async function handler(req, res) {
         confirm_privacy: true
       });
       if (upstream.error) {
-        respond(res, 503, { ok: false, reason: upstream.error });
+        respond(res, upstream.error === "voice_capacity_reached" ? 429 : 503,
+          { ok: false, reason: upstream.error });
         return;
       }
       if (!JOB_RE.test(upstream.data?.job_id) || upstream.data.status !== "processing" ||

@@ -9,6 +9,8 @@
   const stop = $("natlas-stop");
   const submit = $("natlas-submit");
   const check = $("natlas-check");
+  const capacity = $("natlas-capacity");
+  const capacityStatus = $("natlas-capacity-status");
   const output = $("natlas-result");
   const status = $("natlas-status");
   const language = $("natlas-language");
@@ -24,6 +26,7 @@
   let recording = false;
   let inFlight = false;
   let localAudio = null;
+  let capacityExhausted = false;
   let polls = 0;
   let timer = null;
 
@@ -31,12 +34,17 @@
   function controls() {
     start.disabled = !supported || recording || inFlight || Boolean(check.dataset.pending);
     stop.disabled = !recording;
-    submit.disabled = recording || inFlight || !localAudio || !privacy.checked || !passcode.value.trim();
+    submit.disabled = recording || inFlight || capacityExhausted ||
+      !localAudio || !privacy.checked || !passcode.value.trim();
     check.disabled = inFlight || !check.dataset.pending;
+    capacity.disabled = recording || inFlight || !passcode.value.trim();
   }
   function clearLocalAudio() { localAudio = null; chunks = []; controls(); }
   privacy.addEventListener("change", controls);
-  passcode.addEventListener("input", controls);
+  passcode.addEventListener("input", () => {
+    capacityExhausted = false;
+    controls();
+  });
   language.addEventListener("change", () => {
     clearLocalAudio();
     privacy.checked = false;
@@ -161,13 +169,46 @@
     if (!response.ok || data.ok !== true) {
       if (data.reason === "natlas_not_configured") throw Error("N-ATLAS pilot is not activated on the cloud yet.");
       if (data.reason === "voice_demo_access_denied") throw Error("Demo passcode is incorrect.");
-      if (data.reason === "voice_capacity_reached") throw Error("Daily demonstration capacity is reached.");
+      if (data.reason === "voice_capacity_reached") {
+        capacityExhausted = true;
+        controls();
+        throw Error("Shared N-ATLAS demo capacity is reached. Check demo capacity for the reset and remaining overall allowance.");
+      }
+      if (data.reason === "voice_quota_unavailable") {
+        throw Error("N-ATLAS quota tracking is unavailable; submissions are safely paused.");
+      }
       if (data.reason === "voice_job_expired") throw Error("Voice session expired. A new recording will be required.");
       if (data.reason === "voice_job_already_active") throw Error("An earlier recording is still processing. Check its result first.");
       throw Error("N-ATLAS transcription is temporarily unavailable; no payment action was taken.");
     }
     return data;
   }
+
+  capacity.addEventListener("click", async () => {
+    if (inFlight || recording || !passcode.value.trim()) return;
+    inFlight = true;
+    controls();
+    capacityStatus.textContent = "Checking the shared quota. No recording is submitted.";
+    try {
+      const result = await post("capacity", { demo_passcode: passcode.value });
+      if (!Number.isSafeInteger(result.remaining) || !Number.isSafeInteger(result.daily_limit) ||
+          !Number.isSafeInteger(result.lifetime_remaining)) {
+        throw Error("Capacity information is temporarily unavailable.");
+      }
+      capacityExhausted = result.remaining === 0;
+      const daily = Math.max(0, result.daily_limit - result.daily_used);
+      capacityStatus.textContent = "Shared N-ATLAS capacity: " + result.remaining +
+        " submission(s) currently available. Daily allowance remaining: " + daily +
+        ". Overall pilot allowance remaining: " + result.lifetime_remaining +
+        ". Daily limit resets at " + result.reset_at_utc +
+        " (UTC); the overall pilot limit does not reset automatically.";
+    } catch (error) {
+      capacityStatus.textContent = error.message || "Unable to check demo capacity.";
+    } finally {
+      inFlight = false;
+      controls();
+    }
+  });
 
   async function checkStatus() {
     if (inFlight || !check.dataset.pending) return;
@@ -216,6 +257,8 @@
       if (result.status !== "processing") throw Error("Unexpected N-ATLAS job response.");
       clearLocalAudio();
       passcode.value = "";
+      capacityExhausted = false;
+      capacityStatus.textContent = "One new submission has been reserved. Re-enter the passcode and check capacity before another recording.";
       check.dataset.pending = "1";
       polls = 0;
       message("Recording submitted. N-ATLAS is processing your selected language.");

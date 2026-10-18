@@ -5,7 +5,6 @@ All provider requests remain sandbox-demo-only and cannot authorize a payment.
 """
 from __future__ import annotations
 
-import asyncio
 import base64
 import binascii
 import io
@@ -24,12 +23,6 @@ MODEL_BY_LANGUAGE = {
 RUNPOD_URL = re.compile(r"^https://api\.runpod\.ai/v2/[A-Za-z0-9_-]+$")
 JOB_ID = re.compile(r"^[A-Za-z0-9_-]{8,128}$")
 MAX_WAV_BYTES = 1_050_000  # 30 seconds of 16k mono PCM16 + WAV headers
-DEMO_SUBMISSION_LIMIT = 12  # per Railway process, not a durable quota
-
-_count = 0
-_quota_lock = asyncio.Lock()
-
-
 class VoiceConfigurationError(Exception):
     pass
 
@@ -39,10 +32,6 @@ class VoiceValidationError(Exception):
 
 
 class VoiceProviderError(Exception):
-    pass
-
-
-class VoiceQuotaError(Exception):
     pass
 
 
@@ -76,14 +65,6 @@ def provider_config() -> tuple[str, str]:
     if not RUNPOD_URL.fullmatch(endpoint) or len(key) < 12:
         raise VoiceConfigurationError("Dedicated N-ATLAS ASR provider is not configured")
     return endpoint, key
-
-
-async def reserve_demo_slot() -> None:
-    global _count
-    async with _quota_lock:
-        if _count >= DEMO_SUBMISSION_LIMIT:
-            raise VoiceQuotaError("Voice demo capacity reached")
-        _count += 1
 
 
 class RunPodVoiceGateway:

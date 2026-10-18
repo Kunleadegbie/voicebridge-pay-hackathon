@@ -102,9 +102,9 @@ and no more than about 1.05 MB WAV. The browser locally records up to
 ## Known pilot limitations
 
 - This is a **transcription lab**, not a speech-based payment command agent.
-- No independent durable voice audit/usage store; a conservative **12 new
-  provider jobs per backend process lifetime** is imposed, but the counter
-  resets on restart and does not constitute a distributed rate limit.
+- Before the reviewed quota upgrade is deliberately configured and deployed,
+  the live pilot still uses a **12 new jobs per backend process** counter.
+  The proposed persistent quota is described in the upgrade section below.
 - Test-only access passcode, not full user login.
 - No voice-driven financial advice, LLM classification, translated
   confirmation or production TTS.
@@ -113,6 +113,81 @@ and no more than about 1.05 MB WAV. The browser locally records up to
 - A browser may suspend async polling during long RunPod cold starts.
   The user can manually check with the signed cookie within 12 minutes.
 - Do not generalize the original prototype's test counts to this new app.
+
+
+
+## Stage 3E-A quota upgrade (review branch; not activated)
+
+This extension replaces the unsafe 12-jobs-per-process limit with **atomic,
+shared, persistent** reservations using a *new dedicated* Upstash Redis REST
+database. The original VoiceBridge AI and PayPal sandbox checkout are not
+changed. The existing RunPod worker, HF token and checkout secrets are not
+moved or modified.
+
+**Deployment gate:** Do not merge or redeploy before the quota database is
+created and its credentials are stored privately in Railway. Without a
+configured and reachable quota store, **new voice submissions fail closed**
+with HTTP 503. Existing voice-job status lookups continue to work. Nothing
+auto-creates a database or incurs Redis/RunPod costs just by merging source.
+
+### Set up a separate Redis database for VoiceBridge AI Pay
+
+1. Create or use a dedicated Upstash Redis database for the **hackathon app
+   only**. Review provider availability, data-handling terms and pricing first.
+2. In Railway, **VoiceBridge-Pay-Hackathon → voicebridge-pay-hackathon →
+   Variables**, add these as private production environment variables:
+   - `VOICE_QUOTA_REDIS_REST_URL`: exact Upstash Redis HTTPS REST URL
+     (`https://YOUR-DATABASE.upstash.io`).
+   - `VOICE_QUOTA_REDIS_REST_TOKEN`: the database's private REST token
+     (not its read-only token).
+   - `VOICE_DEMO_DAILY_LIMIT=12` (default; valid range 1–30).
+   - `VOICE_DEMO_TOTAL_LIMIT=48` (default; valid range 1–120).
+3. Do **not** put the Redis token in Vercel, web code, GitHub commits, URLs
+   visible to users, or screenshots. Keep existing `VOICE_SERVICE_KEY`
+   unchanged on both services.
+4. Once GitHub CI checks pass and all variables are configured, a carefully
+   supervised deployment can be considered. Do not change the original
+   VoiceBridge AI Railway project or the RunPod endpoint.
+5. Open the restricted speech lab, enter the same private demo passcode and
+   click **Check demo capacity**. It is read-only: no microphone audio,
+   RunPod work or payment action is initiated.
+6. Verify the displayed remaining daily and overall counts; make just one
+   low-risk supervised N-ATLAS test, then check the updated remaining count.
+   Check PayPal sandbox independently afterward to confirm isolation.
+
+### Counter behaviour and safety
+
+- Shared across Railway instances and **survives process and deploy restarts**.
+  A single Redis Lua `EVAL` transaction checks and increments both counters
+  atomically; it never allows a request beyond either limit.
+- The daily count resets at **00:00 UTC** (01:00 West Africa Time). The
+  *separate lifetime counter* does **not** reset automatically. Both limits
+  are shared across all passcode holders, not per-user.
+- A submission reserves a slot **before** calling RunPod. If the provider
+  fails or its response is uncertain, that slot is intentionally not refunded,
+  preventing ambiguous retries from exceeding the allowed usage.
+- Audio recordings, transcripts, API keys and passcodes are **not saved**
+  in the Redis quota records. Only aggregate counter keys are stored.
+- A missing or unavailable database, invalid configuration, invalid Redis
+  response or denied request causes a safe failure. Never retry a failed
+  submission automatically.
+- The quota limits the **number of submitted jobs**, not the exact GPU spend.
+  Continue monitoring RunPod charges and maintain 0 active workers / 1 maximum
+  worker unless the operator deliberately decides otherwise.
+- The *new* Redis database starts with zero counters. Prior process-local
+  submissions are **not migrated**; track previously incurred provider
+  usage separately. Do not claim the new lifetime total includes past work.
+- This is a restricted pilot quota, **not** production user authentication,
+  an individual per-account limit, or a finished financial transaction ledger.
+
+### Release verification
+
+Run `pytest -q` in `backend/`, and `npm test` in `web/`.
+Automated tests use mocked Redis, RunPod and PayPal services; they cannot
+confirm deployed Upstash credentials. Before enabling more test submissions,
+verify backend 429 on exhaustion, 503 on Redis failure, client read-only
+capacity reporting, expiry at UTC midnight, and no changes to PayPal
+checkout flows.
 
 ## Next sub-stages
 
