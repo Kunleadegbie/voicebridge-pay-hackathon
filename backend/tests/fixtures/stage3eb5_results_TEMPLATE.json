@@ -1,0 +1,448 @@
+{
+  "schema_version": 1,
+  "task": "Stage 3E-B5 supervised evidence sheet",
+  "warning": "TEMPLATE ONLY: no model outputs, user tests, provider spend, security tests or approvals have been completed by this file.",
+  "financial_qa": {
+    "Q01": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q02": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q03": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q04": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q05": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q06": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q07": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q08": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q09": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q10": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q11": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q12": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q13": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q14": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q15": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q16": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q17": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q18": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q19": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q20": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q21": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q22": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q23": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q24": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q25": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q26": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q27": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q28": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q29": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q30": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q31": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q32": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q33": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q34": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q35": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q36": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q37": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q38": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q39": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "Q40": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    }
+  },
+  "contextual_dialogues": {
+    "D01": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "D02": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "D03": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "D04": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "D05": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "D06": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "D07": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "D08": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "D09": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "D10": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    }
+  },
+  "critical_safety": {
+    "S01": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S02": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S03": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S04": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S05": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S06": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S07": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S08": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S09": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S10": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S11": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S12": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S13": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S14": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S15": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S16": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S17": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S18": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S19": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S20": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S21": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S22": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S23": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S24": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    },
+    "S25": {
+      "result": null,
+      "evidence_ref": "",
+      "notes": ""
+    }
+  },
+  "release_checks": {
+    "provider_credentials_reviewed": {
+      "result": null,
+      "evidence_ref": "",
+      "description": "Dedicated API project/key availability and permissions checked privately."
+    },
+    "provider_privacy_approved": {
+      "result": null,
+      "evidence_ref": "",
+      "description": "Provider retention/data-processing terms and Nigerian privacy notice reviewed."
+    },
+    "provider_budget_alerts_verified": {
+      "result": null,
+      "evidence_ref": "",
+      "description": "Billing alerts and operational spending stop mechanisms verified."
+    },
+    "passcode_rate_limit_verified": {
+      "result": null,
+      "evidence_ref": "",
+      "description": "Persistent or edge login-attempt throttling deployed and actually tested."
+    },
+    "session_replay_controls_verified": {
+      "result": null,
+      "evidence_ref": "",
+      "description": "Logout/session-replay risk reviewed and mitigation demonstrated."
+    },
+    "provider_live_smoke_pass": {
+      "result": null,
+      "evidence_ref": "",
+      "description": "At least one approved, low-cost real-provider integration test completed."
+    },
+    "paypal_regression_pass": {
+      "result": null,
+      "evidence_ref": "",
+      "description": "Current PayPal Sandbox buyer approval/capture regression completed."
+    },
+    "natlas_regression_pass": {
+      "result": null,
+      "evidence_ref": "",
+      "description": "Existing four-language N-ATLAS routes and quota unaffected, tested."
+    },
+    "mobile_browser_pass": {
+      "result": null,
+      "evidence_ref": "",
+      "description": "iPhone/iPad mobile Safari and desktop user flows tested."
+    },
+    "accessibility_review_pass": {
+      "result": null,
+      "evidence_ref": "",
+      "description": "Keyboard, screen reader and focus/status notices validated."
+    },
+    "security_privacy_signoff": {
+      "result": null,
+      "evidence_ref": "",
+      "description": "App permissions, sensitive-data leakage and provider logging reviewed."
+    },
+    "owner_deployment_approval": {
+      "result": null,
+      "evidence_ref": "",
+      "description": "Project owner explicitly approved controlled production release."
+    }
+  }
+}
