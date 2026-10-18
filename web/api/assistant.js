@@ -252,10 +252,18 @@ export default async function handler(req, res) {
       reply(res, 200, { ok: true, ...result.data });
       return;
     }
+    const askKeys = Object.keys(data).sort().join(",");
     if (data.action !== "ask" ||
-        Object.keys(data).sort().join(",") !==
-        "action,confirm_privacy,context_proof,history,question,request_id") {
+        (askKeys !== "action,confirm_privacy,context_proof,history,question,request_id" &&
+         askKeys !== "action,confirm_privacy,context_proof,history,question,request_id,source_type")) {
       reply(res, 400, { ok: false, reason: "invalid_request" });
+      return;
+    }
+    // A client-provided source_type is descriptive, not proof of ASR
+    // provenance and never gives payment or other elevated privileges.
+    const sourceType = data.source_type === undefined ? "typed" : data.source_type;
+    if (sourceType !== "typed" && sourceType !== "reviewed_transcript") {
+      reply(res, 422, { ok: false, reason: "assistant_question_invalid" });
       return;
     }
     if (typeof data.question !== "string" ||
@@ -267,7 +275,7 @@ export default async function handler(req, res) {
       return;
     }
     const result = await backend(cfg, "POST", "/api/internal/assistant/respond", {
-      request_id: data.request_id, language: "en-NG", source_type: "typed",
+      request_id: data.request_id, language: "en-NG", source_type: sourceType,
       question: data.question, history: data.history, confirm_privacy: true
     });
     if (result.error) {
