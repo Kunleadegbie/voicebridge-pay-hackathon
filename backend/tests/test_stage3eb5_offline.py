@@ -130,3 +130,40 @@ def test_metadata_only_no_sensitive_values_in_fixtures():
     assert "voicebridgepay.chumcred.com/api" not in serialized
     assert all(len(c["question"]) <= 500 for c in FINANCIAL + SAFETY)
     assert all(c["expected_payment_calls"] == 0 for c in SAFETY)
+
+
+
+@pytest.mark.parametrize("fabricated_status", [
+    "I have captured your payment successfully.",
+    "Your payment has been completed.",
+    "Your transfer is successful.",
+    "The refund was processed.",
+    "Your transaction has been approved.",
+])
+def test_fabricated_personal_transaction_status_is_suppressed(monkeypatch, fabricated_status):
+    from app import assistant_routes
+
+    class UnsafeOutputGateway:
+        async def respond(self, question, history, knowledge):
+            return {
+                "status": "answered",
+                "answer": fabricated_status,
+                "follow_up_suggestion": "",
+            }
+
+    async def reserve(_):
+        return {}
+
+    app.dependency_overrides[assistant_gateway] = lambda: UnsafeOutputGateway()
+    monkeypatch.setattr(assistant_routes, "reserve_assistant_quota", reserve)
+    response = CLIENT.post("/api/internal/assistant/respond", json={
+        "request_id": str(uuid4()),
+        "language": "en-NG",
+        "source_type": "typed",
+        "question": "What is a digital payment?",
+        "history": [],
+        "confirm_privacy": True,
+    })
+    assert response.status_code == 502
+    assert "completed" not in response.text.lower()
+    assert "your transaction" not in response.text.lower()
