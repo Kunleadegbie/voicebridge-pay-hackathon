@@ -52,7 +52,7 @@ _ACTION = (
 _ACCOUNT = (
     re.compile(
         r"\b(?:my|our)\s+(?:(?:bank|paypal|wallet|card)\s+)?(?:account\s+)?"
-        r"(?:balance|transactions?|statement|history|details)\b", re.I
+        r"(?:balance|transactions?|statement|history)\b", re.I
     ),
     re.compile(
         r"\b(?:check|show|fetch|access|display|retrieve|read|tell)\s+"
