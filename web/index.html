@@ -10,6 +10,7 @@
   <script src="/app.js" defer></script>
   <script src="/checkout.js" defer></script>
   <script src="/natlas-voice.js" defer></script>
+  <script src="/financial-assistant.js" defer></script>
 </head>
 <body>
   <main class="site">
@@ -110,6 +111,49 @@
         <strong>N-ATLAS transcript</strong>
         <p id="natlas-result" aria-live="polite">No transcription yet.</p>
       </div>
+    </section>
+    <section class="checkout-card financial-assistant" aria-labelledby="assistant-title">
+      <p class="eyebrow">Stage 3E-B · Restricted Financial Intelligence Assistant</p>
+      <h2 id="assistant-title">Ask questions about digital payments</h2>
+      <p class="intro">Get simple, AI-assisted explanations of payment safety, receipts, transfers and digital wallets. This private, text-first educational pilot <strong>cannot access accounts, approve payments or move money.</strong> It is independent of the N-ATLAS Speech Lab and PayPal Sandbox checkout.</p>
+      <div class="assistant-notice" role="note">The assistant is disabled until a separate reviewed AI provider and demonstration access are configured. Do not enter names, account or card details, OTPs, PINs, passwords, BVNs or other confidential information. Answers are educational, not verified transaction records or personalised financial advice.</div>
+      <div class="pilot-fields assistant-access">
+        <div>
+          <label for="assistant-passcode">Financial assistant demonstration passcode</label>
+          <input id="assistant-passcode" type="password" maxlength="128" autocomplete="off" placeholder="Private demonstration access code">
+        </div>
+        <div class="assistant-access-action">
+          <button id="assistant-start" type="button">Unlock assistant</button>
+          <button id="assistant-end" class="secondary-button" type="button" disabled>End demo session</button>
+        </div>
+      </div>
+      <p id="assistant-access-status" role="status" aria-live="polite">This educational assistant needs separate activation. Unlock it only if you have the dedicated passcode.</p>
+      <div class="pilot-actions">
+        <button id="assistant-capacity" class="secondary-button" type="button" disabled>Check AI capacity</button>
+        <button id="assistant-new" class="secondary-button" type="button" disabled>New conversation</button>
+      </div>
+      <p id="assistant-capacity-status" role="status" aria-live="polite">The AI-answer allowance is separate from your N-ATLAS transcription allowance. A capacity check does not call the AI model.</p>
+      <div class="assistant-suggestions" aria-label="Example questions">
+        <span class="assistant-label">Try a question:</span>
+        <button type="button" class="secondary-button assistant-example" disabled data-question="What is a digital payment?">What is a digital payment?</button>
+        <button type="button" class="secondary-button assistant-example" disabled data-question="How can I avoid payment scams?">How can I avoid payment scams?</button>
+        <button type="button" class="secondary-button assistant-example" disabled data-question="What does a payment receipt show?">What does a receipt show?</button>
+      </div>
+      <div id="assistant-messages" class="assistant-messages" role="log" aria-live="polite" aria-relevant="additions" aria-label="Financial education conversation">
+        <p class="assistant-empty">Your conversation will appear here. Questions are typed; any future spoken question must first be reviewed as text.</p>
+      </div>
+      <form id="assistant-form" novalidate>
+        <label for="assistant-question">Your financial education question (Nigerian English)</label>
+        <textarea id="assistant-question" rows="3" maxlength="500" placeholder="Example: What should I check before a digital payment?" disabled></textarea>
+        <label class="checkbox-row" for="assistant-privacy">
+          <input id="assistant-privacy" type="checkbox" disabled>
+          <span>I consent to send my question and recent conversation context to the selected external AI provider for educational answers. I will not enter private financial or identity information. The assistant cannot authorise payments.</span>
+        </label>
+        <div class="pilot-actions">
+          <button id="assistant-ask" type="submit" disabled>Ask financial assistant</button>
+        </div>
+      </form>
+      <p id="assistant-status" role="status" aria-live="polite">The service is text-first and uses a separate, limited AI demonstration quota.</p>
     </section>
     <section class="features" aria-label="Development roadmap">
       <article class="feature"><span class="step">01</span><h3>PayPal sandbox</h3><p>Real sandbox approval and capture have been verified. Browser pilot is enabled only after secure server configuration.</p></article>
