@@ -45,7 +45,9 @@ class AssistantQuestion(BaseModel):
     # Generated for each deliberate Ask click; duplicate ID must never run twice.
     request_id: UUID
     language: Literal["en-NG"]
-    source_type: Literal["typed"] = "typed"
+    # Informational metadata only. It never conveys verified model origin or
+    # permission to take any financial action.
+    source_type: Literal["typed", "reviewed_transcript"] = "typed"
     question: str = Field(min_length=3, max_length=500)
     history: list[ConversationTurn] = Field(default_factory=list, max_length=8)
     confirm_privacy: Literal[True]
