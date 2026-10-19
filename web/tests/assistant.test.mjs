@@ -9,13 +9,16 @@ const KEYS = [
   "BACKEND_URL", "VOICE_SERVICE_KEY", "CHECKOUT_SERVICE_KEY"
 ];
 const originalEnv = Object.fromEntries(KEYS.map(k => [k, process.env[k]]));
+let accessStore;
+let accessAttempts;
 
-function mockRequest(body, cookie = "", origin = "https://voicebridgepay.chumcred.com") {
+function mockRequest(body, cookie = "", origin = "https://voicebridgepay.chumcred.com", ip = "203.0.113.9") {
   return {
     method: "POST",
     headers: {
       origin,
       host: "voicebridgepay.chumcred.com",
+      "x-vercel-forwarded-for": ip,
       "x-requested-with": "VoiceBridgeAssistant",
       "content-type": "application/json",
       "sec-fetch-site": "same-origin",
@@ -31,9 +34,53 @@ function mockResponse() {
     end(json) { this.payload = JSON.parse(json); }
   };
 }
-async function call(body, cookie = "", origin) {
+async function call(body, cookie = "", origin, ip) {
   const res = mockResponse();
-  await handler(mockRequest(body, cookie, origin), res);
+  const original = globalThis.fetch;
+  // Only the private access store is mocked here. All application and
+  // provider requests must still be explicitly mocked within each test.
+  globalThis.fetch = async (url, options) => {
+    if (String(url).endsWith("/api/internal/assistant/access")) {
+      const request = JSON.parse(options.body);
+      const key = request.fingerprint;
+      const op = request.action;
+      if (op === "attempt") {
+        const attempts = (accessAttempts.get(key) || 0) + 1;
+        accessAttempts.set(key, attempts);
+        if (attempts > 5) {
+          return new Response(JSON.stringify({ detail: "limited" }), { status: 429 });
+        }
+        return new Response(JSON.stringify({
+          status: "allowed", attempts_remaining: 5 - attempts
+        }), { status: 200 });
+      }
+      if (op === "register") {
+        accessStore.set(request.session_id, key);
+        return new Response(JSON.stringify({ status: "registered" }), { status: 200 });
+      }
+      if (op === "validate") {
+        const active = accessStore.get(request.session_id) === key;
+        return new Response(JSON.stringify({
+          status: active ? "active" : "inactive"
+        }), { status: 200 });
+      }
+      if (op === "revoke") {
+        const active = accessStore.get(request.session_id) === key;
+        if (active) accessStore.delete(request.session_id);
+        return new Response(JSON.stringify({
+          status: active ? "revoked" : "inactive"
+        }), { status: 200 });
+      }
+      throw Error("Unsupported access operation");
+    }
+    if (typeof original !== "function") throw Error("Unexpected upstream call");
+    return original(url, options);
+  };
+  try {
+    await handler(mockRequest(body, cookie, origin, ip), res);
+  } finally {
+    globalThis.fetch = original;
+  }
   return res;
 }
 async function login() {
@@ -59,6 +106,8 @@ const requestId2 = "12345678-1234-4123-8123-123456789abd";
 const question = "What is a digital payment?";
 
 beforeEach(() => {
+  accessStore = new Map();
+  accessAttempts = new Map();
   process.env.ENABLE_FINANCIAL_ASSISTANT = "1";
   process.env.ASSISTANT_SERVICE_KEY = "a".repeat(64);
   process.env.ASSISTANT_SESSION_SECRET = "s".repeat(64);
@@ -320,3 +369,53 @@ test("reviewed speech cannot add audio, payment, approval or recording fields", 
     assert.equal(result.statusCode, 400);
   }
 });
+
+
+test("sixth attempt is rate-limited across requests, including a correct passcode", async () => {
+  globalThis.fetch = async () => { throw Error("Must not call the model or PayPal"); };
+  for (let i = 0; i < 5; i++) {
+    const response = await call({ action: "start", passcode: "incorrect" });
+    assert.equal(response.statusCode, 403);
+  }
+  const response = await call({
+    action: "start", passcode: "test-financial-education-strong-code"
+  });
+  assert.equal(response.statusCode, 429);
+  assert.equal(response.payload.reason, "assistant_access_limited");
+  assert.equal(response.headers["set-cookie"], undefined);
+});
+
+test("server revocation rejects replayed session cookie after explicit End", async () => {
+  const cookie = await login();
+  globalThis.fetch = async () => { throw Error("No upstream paid or checkout call"); };
+  const before = await call({ action: "capacity" }, cookie);
+  // Backend capacity would be invoked after valid security validation;
+  // there is no mock provider so this falls closed.
+  assert.equal(before.statusCode, 503);
+  const loggedOut = await call({ action: "end" }, cookie);
+  assert.equal(loggedOut.statusCode, 200);
+  assert.match(loggedOut.headers["set-cookie"], /Max-Age=0/);
+  const replayed = await call({ action: "capacity" }, cookie);
+  assert.equal(replayed.statusCode, 401);
+  assert.equal(replayed.payload.reason, "assistant_session_expired");
+});
+
+test("bound sessions fail from a different trusted edge IP, without provider calls", async () => {
+  const cookie = await login();
+  globalThis.fetch = async () => { throw Error("No upstream paid or checkout call"); };
+  const denied = await call(
+    { action: "capacity" }, cookie, "https://voicebridgepay.chumcred.com", "198.51.100.15"
+  );
+  assert.equal(denied.statusCode, 401);
+  assert.equal(denied.payload.reason, "assistant_session_expired");
+});
+
+test("missing or client-shaped untrusted proxy IP fails closed", async () => {
+  globalThis.fetch = async () => { throw Error("No security storage without trusted client identity"); };
+  const response = await call({
+    action: "start", passcode: "test-financial-education-strong-code"
+  }, "", "https://voicebridgepay.chumcred.com", "spoofed, 192.0.2.1");
+  assert.equal(response.statusCode, 503);
+  assert.equal(response.payload.reason, "assistant_access_unavailable");
+});
+
