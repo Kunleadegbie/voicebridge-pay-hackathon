@@ -2,6 +2,7 @@
 // Distinct from PayPal checkout and N-ATLAS voice; no payment or audio calls.
 // The assistant is OFF unless configured deliberately on BOTH cloud services.
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { isIP } from "node:net";
 
 const ORIGINS = new Set([
   "https://voicebridgepay.chumcred.com",
@@ -43,6 +44,17 @@ function config() {
   if (key === process.env.VOICE_SERVICE_KEY ||
       key === process.env.CHECKOUT_SERVICE_KEY) return null;
   return { key, secret, passcode };
+}
+function clientFingerprint(req, secret) {
+  // Vercel overwrites proxy client-IP headers in its normal network
+  // topology. Never use an arbitrary browser-supplied IP from a JSON body
+  // or fall back to user-controlled X-Forwarded-For chains.
+  const trusted = header(req, "x-vercel-forwarded-for") ||
+    header(req, "x-real-ip");
+  if (typeof trusted !== "string" || trusted.length > 65 ||
+      !isIP(trusted.trim())) return null;
+  return createHmac("sha256", secret)
+    .update("vbpay-assistant-access:" + trusted.trim()).digest("hex");
 }
 function safeEqual(a, b) {
   if (typeof a !== "string" || typeof b !== "string") return false;
@@ -172,6 +184,25 @@ async function backend(cfg, method, path, body) {
   return { data };
 }
 
+async function accessOperation(cfg, action, fingerprint, sessionId) {
+  const result = await backend(
+    cfg, "POST", "/api/internal/assistant/access",
+    { action, fingerprint, ...(sessionId ? { session_id: sessionId } : {}) }
+  );
+  if (result.error) {
+    return {
+      error: result.status === 429 ? "assistant_access_limited" :
+        "assistant_access_unavailable",
+      status: result.status === 429 ? 429 : 503
+    };
+  }
+  if (!result.data || typeof result.data !== "object" ||
+      typeof result.data.status !== "string") {
+    return { error: "assistant_access_unavailable", status: 503 };
+  }
+  return { data: result.data };
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -211,28 +242,81 @@ export default async function handler(req, res) {
     return;
   }
   try {
+    const fingerprint = clientFingerprint(req, cfg.secret);
+    if (!fingerprint) {
+      // A missing/untrusted proxy identity must never bypass rate limits.
+      reply(res, 503, { ok: false, reason: "assistant_access_unavailable" });
+      return;
+    }
     if (data.action === "start") {
       if (Object.keys(data).sort().join(",") !== "action,passcode" ||
           typeof data.passcode !== "string" ||
-          !safeEqual(data.passcode, cfg.passcode)) {
+          data.passcode.length > 128) {
+        reply(res, 400, { ok: false, reason: "invalid_request" });
+        return;
+      }
+      // Atomically debit the LOGIN attempt BEFORE comparing the password,
+      // across all Vercel/Railway instances; fail closed on Redis outage.
+      const attempt = await accessOperation(cfg, "attempt", fingerprint);
+      if (attempt.error) {
+        reply(res, attempt.status, { ok: false, reason: attempt.error });
+        return;
+      }
+      if (attempt.data.status !== "allowed") {
+        reply(res, 503, { ok: false, reason: "assistant_access_unavailable" });
+        return;
+      }
+      if (!safeEqual(data.passcode, cfg.passcode)) {
         reply(res, 403, { ok: false, reason: "assistant_access_denied" });
         return;
       }
-      const value = sign({
-        nonce: randomBytes(16).toString("hex"),
-        exp: Date.now() + TTL_MS
-      }, cfg.secret, "assistant-session");
+      const issued = { nonce: randomBytes(16).toString("hex"),
+        exp: Date.now() + TTL_MS };
+      // Stateless signed cookie is NOT sufficient. Redis registration must
+      // succeed so a later logout can revoke a copied/replayed cookie.
+      const register = await accessOperation(cfg, "register", fingerprint, issued.nonce);
+      if (register.error || register.data.status !== "registered") {
+        reply(res, 503, { ok: false, reason: "assistant_access_unavailable" });
+        return;
+      }
+      const cookie = sign(issued, cfg.secret, "assistant-session");
       reply(res, 200, { ok: true, status: "ready", expires_in_seconds: 900 },
-        newCookie(value));
-      return;
-    }
-    if (data.action === "end") {
-      reply(res, 200, { ok: true, status: "ended" }, newCookie("", 0));
+        newCookie(cookie));
       return;
     }
     const active = session(req, cfg.secret);
+    if (data.action === "end") {
+      if (Object.keys(data).sort().join(",") !== "action") {
+        reply(res, 400, { ok: false, reason: "invalid_request" });
+        return;
+      }
+      if (!active) {
+        reply(res, 200, { ok: true, status: "ended" }, newCookie("", 0));
+        return;
+      }
+      const revoke = await accessOperation(cfg, "revoke", fingerprint, active.nonce);
+      if (revoke.error || !["revoked", "inactive"].includes(revoke.data.status)) {
+        // Do NOT falsely claim server-side logout when storage failed.
+        reply(res, 503, { ok: false, reason: "assistant_access_unavailable" });
+        return;
+      }
+      reply(res, 200, { ok: true, status: "ended" }, newCookie("", 0));
+      return;
+    }
     if (!active) {
       reply(res, 401, { ok: false, reason: "assistant_session_expired" });
+      return;
+    }
+    const verification = await accessOperation(
+      cfg, "validate", fingerprint, active.nonce
+    );
+    if (verification.error) {
+      reply(res, verification.status, { ok: false, reason: verification.error });
+      return;
+    }
+    if (verification.data.status !== "active") {
+      reply(res, 401, { ok: false, reason: "assistant_session_expired" },
+        newCookie("", 0));
       return;
     }
     if (data.action === "capacity") {
