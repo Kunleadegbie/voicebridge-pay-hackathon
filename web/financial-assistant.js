@@ -105,6 +105,8 @@
       const reasons = {
         assistant_not_configured: "The financial assistant is not activated yet. Existing N-ATLAS and PayPal demos remain available.",
         assistant_access_denied: "The financial assistant passcode is incorrect.",
+        assistant_access_limited: "Too many demonstration access attempts. Please wait about 15 minutes before trying again. No AI credits were used.",
+        assistant_access_unavailable: "The assistant's access-security service is unavailable. Requests are blocked for safety. Try again later.",
         assistant_session_expired: "Your 15-minute demo session has expired. Unlock again.",
         assistant_capacity_reached: "The separate AI demo allowance has been reached. Check AI capacity for the remaining limits.",
         assistant_duplicate_request: "This question has already been submitted. No second AI request was initiated.",
@@ -223,25 +225,32 @@
     if (inFlight || !unlocked) return;
     inFlight = true;
     controls();
+    let revoked = false;
     try {
-      await request("end");
-      accessStatus.textContent = "Demonstration session ended.";
-    } catch {
+      const result = await request("end");
+      if (result.status !== "ended") throw Error("Logout could not be verified.");
+      revoked = true;
       accessStatus.textContent =
-        "Local conversation closed; the server session may remain valid until expiry.";
+        "Session ended and revoked on the server. A copied session cookie can no longer be used.";
+    } catch {
+      // Do not claim success or prevent the user from retrying logout.
+      accessStatus.textContent =
+        "Server-side logout could not be verified. Conversation text is cleared locally. Click End demo session again; a previous session may remain valid until expiry.";
     } finally {
-      unlocked = false;
       privacy.checked = false;
       history = [];
       contextProof = "";
-      uncertainSubmission = false;
+      uncertainSubmission = !revoked;
       imported = false;
       reviewed = false;
       if (review) review.checked = false;
-      if (sourceStatus) sourceStatus.textContent = "Session ended. Imported question cleared.";
+      if (sourceStatus) sourceStatus.textContent = revoked ?
+        "Assistant session ended. Imported speech text is cleared." :
+        "Conversation text cleared. Server-side logout must be retried.";
       question.value = "";
       passcode.value = "";
       messages.replaceChildren();
+      if (revoked) unlocked = false;
       inFlight = false;
       controls();
     }
