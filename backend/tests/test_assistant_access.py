@@ -65,7 +65,7 @@ def test_atomic_login_limiter_lockout_and_session_revoke(monkeypatch):
     actual_client = httpx.AsyncClient
 
     def respond(request):
-        assert str(request.url) == REDIS_URL + "/"
+        assert str(request.url) == REDIS_URL
         assert request.headers["Authorization"] == "Bearer " + TOKEN
         cmd = __import__("json").loads(request.content)
         assert cmd[0] == "EVAL"
