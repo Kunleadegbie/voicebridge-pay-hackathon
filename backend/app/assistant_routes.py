@@ -24,6 +24,10 @@ from .assistant_quota import (
     AssistantDuplicateRequest, reserve_assistant_quota, assistant_quota_status,
 )
 from .assistant_safety import guard_question
+from .assistant_access import (
+    AssistantAccessLimited, AssistantAccessUnavailable,
+    register_attempt, register_session, validate_session, revoke_session,
+)
 
 router = APIRouter(prefix="/api/internal/assistant", tags=["internal-assistant"])
 _BANNER = "Educational AI assistance only. No account access or payment authorisation."
@@ -76,6 +80,59 @@ def assistant_gateway(
         return OpenAIAssistantGateway(key, model)
     except AssistantConfigurationError:
         raise HTTPException(status_code=503, detail="AI provider is not configured") from None
+
+
+class AssistantAccessRequest(BaseModel):
+    """Private service-to-service access contract; only hashed client identity."""
+    model_config = ConfigDict(extra="forbid")
+    action: Literal["attempt", "register", "validate", "revoke"]
+    fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+    session_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
+
+
+def assistant_access_gateway(
+    x_assistant_service_key: str | None = Header(default=None),
+) -> bool:
+    # Access security uses the same independent service key as conversation,
+    # but does NOT need live OpenAI credentials or any model invocation.
+    if os.getenv("ENABLE_FINANCIAL_ASSISTANT") != "1":
+        raise HTTPException(status_code=503, detail="Financial assistant pilot is disabled")
+    expected = os.getenv("ASSISTANT_SERVICE_KEY", "")
+    if len(expected) < 48:
+        raise HTTPException(status_code=503, detail="Assistant access service is not configured")
+    if not x_assistant_service_key or not secrets.compare_digest(
+        x_assistant_service_key, expected
+    ):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return True
+
+
+@router.post("/access")
+async def access(
+    body: AssistantAccessRequest,
+    authorised: bool = Depends(assistant_access_gateway),
+) -> dict[str, str | int]:
+    if body.action == "attempt" and body.session_id is not None:
+        raise HTTPException(status_code=422, detail="Invalid access request")
+    if body.action != "attempt" and body.session_id is None:
+        raise HTTPException(status_code=422, detail="Missing assistant session")
+    try:
+        if body.action == "attempt":
+            return await register_attempt(body.fingerprint)
+        if body.action == "register":
+            registered = await register_session(body.fingerprint, body.session_id)
+            if not registered:
+                raise HTTPException(status_code=409, detail="Session collision")
+            return {"status": "registered"}
+        if body.action == "validate":
+            active = await validate_session(body.fingerprint, body.session_id)
+            return {"status": "active" if active else "inactive"}
+        revoked = await revoke_session(body.fingerprint, body.session_id)
+        return {"status": "revoked" if revoked else "inactive"}
+    except AssistantAccessLimited:
+        raise HTTPException(status_code=429, detail="Assistant login temporarily limited") from None
+    except AssistantAccessUnavailable:
+        raise HTTPException(status_code=503, detail="Assistant access temporarily unavailable") from None
 
 
 @router.get("/capacity")
