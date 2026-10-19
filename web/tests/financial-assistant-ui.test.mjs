@@ -302,3 +302,49 @@ test("example and New conversation remove imported review state without spending
   assert.equal(els["assistant-review"].disabled, true);
   assert.deepEqual(requests.map(x => x.action), ["start"]);
 });
+
+
+test("failed server-side End keeps explicit retry available and clears local question", async () => {
+  let logoutCalls = 0;
+  const { els } = ui(async body => {
+    if (body.action === "start") return ok({ status: "ready" });
+    if (body.action === "end") {
+      logoutCalls++;
+      if (logoutCalls === 1) return {
+        ok: false, status: 503, json: async () => ({
+          ok: false, reason: "assistant_access_unavailable"
+        })
+      };
+      return ok({ status: "ended" });
+    }
+    throw Error("Unexpected paid request");
+  });
+  els["assistant-passcode"].value = "private";
+  await els["assistant-start"].emit("click");
+  els["assistant-question"].value = "What is an electronic payment?";
+  await els["assistant-end"].emit("click");
+  assert.match(els["assistant-access-status"].textContent, /not be verified/);
+  assert.equal(els["assistant-end"].disabled, false);
+  assert.equal(els["assistant-ask"].disabled, true);
+  assert.equal(els["assistant-question"].value, "");
+  await els["assistant-end"].emit("click");
+  assert.equal(logoutCalls, 2);
+  assert.match(els["assistant-access-status"].textContent, /revoked on the server/);
+  assert.equal(els["assistant-end"].disabled, true);
+});
+
+test("backend rate-limit reason is explained without revealing the access code", async () => {
+  const { els } = ui(async body => {
+    if (body.action === "start") return {
+      ok: false, status: 429, json: async () => ({
+        ok: false, reason: "assistant_access_limited"
+      })
+    };
+    throw Error("No model or payment calls allowed");
+  });
+  els["assistant-passcode"].value = "a-valid-private-code";
+  await els["assistant-start"].emit("click");
+  assert.match(els["assistant-access-status"].textContent, /15 minutes/);
+  assert.equal(els["assistant-passcode"].value, "");
+  assert.equal(els["assistant-ask"].disabled, true);
+});
