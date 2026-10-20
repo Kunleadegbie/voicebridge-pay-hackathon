@@ -97,7 +97,7 @@ When the Financial Intelligence Assistant is activated and you deliberately subm
 
 The assistant is configured for text-based educational explanations and is not authorised to access personal financial accounts or execute transactions.
 
-OpenAI states that API data is not used to train its models by default unless the customer opts in. Depending on the applicable API arrangement, certain information may be processed or retained for security, abuse monitoring or legal compliance.
+OpenAI states that data submitted through its API is not used to train or improve its models by default unless the customer explicitly opts in. Chumcred Limited has disabled voluntary sharing of model feedback, evaluation and fine-tuning data, and API inputs and outputs within its OpenAI organization. Under OpenAI's standard API arrangements, abuse-monitoring logs may contain submitted questions, AI responses and associated metadata. These records are generally retained for up to 30 days, unless longer retention is required by law or reasonably necessary to protect OpenAI's services or third parties from harm. The dedicated VoiceBridge AI Pay OpenAI project has Global data residency, meaning that information may be stored or processed outside Nigeria. Special Zero Data Retention or Modified Abuse Monitoring approval has not been confirmed.
 
 The application's use of `store: false` does not itself guarantee Zero Data Retention.
 
