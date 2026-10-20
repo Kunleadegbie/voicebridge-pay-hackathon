@@ -23,7 +23,10 @@ from .voice_quota import (
     VoiceQuotaReached, VoiceQuotaUnavailable, reserve_voice_quota, voice_quota_status,
 )
 
+from .assistant_routes import router as assistant_router
+
 app = FastAPI(title="VoiceBridge AI Pay — Sandbox Backend", version="0.1.0")
+app.include_router(assistant_router)  # Stage 3E-B2; disabled by default
 
 
 class DemoOrderRequest(BaseModel):
