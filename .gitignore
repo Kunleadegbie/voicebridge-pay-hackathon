@@ -190,6 +190,30 @@ cython_debug/
 #   option (not recommended) you can uncomment the following to ignore the entire idea folder.
 # .idea/
 
+
+# VoiceBridge AI Pay — additional security exclusions
+
+# Local environment files and credentials
+.env.*
+!.env.example
+
+# Node.js dependencies
+node_modules/
+
+# Vercel local configuration
+.vercel/
+
+# Private certificates and keys
+*.pem
+*.p12
+*.pfx
+*.key
+
+# Local credentials
+credentials.json
+service-account*.json
+
+
 # Abstra
 #   Abstra is an AI-powered process automation framework.
 #   Ignore directories containing user credentials, local state, and settings.
