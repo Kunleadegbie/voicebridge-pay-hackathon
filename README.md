@@ -12,14 +12,50 @@ A **sandbox-only** voice-first accessible payments prototype by Chumcred Limited
 
 No real money has moved. Do not describe a sandbox capture as a live financial transaction.
 
-## Stage 3D-A development preview (PR #5; not yet fully deployed)
 
-The branch adds a mobile-friendly sandbox payment review/approval/capture flow:
-- Private Vercel serverless proxy and short-lived HMAC-signed, HttpOnly checkout cookie; no secret embedded in the frontend.
-- Separate, disabled-by-default Railway service endpoints authenticated by a **new** `CHECKOUT_SERVICE_KEY`; original `DEMO_ACCESS_KEY` is not reused.
-- Exact USD 5.00 price enforced by the Railway backend and reverified before capture.
-- On-screen payment information, a user confirmation checkbox, PayPal buyer redirect, read-only PayPal status verification and a second explicit capture action.
-- Optional experimental browser-native speech recognition selection for Nigerian English, Yoruba, Hausa and Igbo, with a text fallback and optional **English** device playback.
+## Current Demonstration Capabilities — October 2026
+
+VoiceBridge AI Pay is an independently deployed,
+sandbox-only payment accessibility prototype.
+
+### PayPal Sandbox
+
+- PayPal Sandbox API authentication verified.
+- USD 5.00 sandbox order creation tested.
+- Sandbox buyer approval and completed capture verified.
+- Payment status can be checked independently.
+- Payments require deliberate user actions.
+- No real-money transactions are processed.
+
+### Voice and AI Capabilities
+
+- Experimental browser speech recognition with
+  device-dependent language support.
+- Restricted N-ATLAS Nigerian English transcription
+  testing completed.
+- Dedicated RunPod N-ATLAS ASR gateway implemented.
+- Upstash Redis-based demonstration quota controls.
+- Yoruba, Hausa and Igbo N-ATLAS transcription
+  remain pending verification.
+- Text-based fallback for accessibility.
+
+### Privacy and Security
+
+- Privacy Notice review draft published.
+- Restricted demonstration access.
+- Server-side management of provider credentials.
+- Speech cannot authorize payment capture.
+- Financial Intelligence Assistant remains disabled.
+- Production payment integration remains unchanged.
+
+### Project Links
+
+Hosted demonstration:
+https://voicebridgepay.chumcred.com
+
+Privacy Notice:
+https://voicebridgepay.chumcred.com/privacy-notice.html
+
 
 **Important:** Browser-native speech recognition is **not** N-ATLAS ASR; browser locale support and recognition quality vary. Hosted official N-ATLAS four-language ASR, actual AI intent handling, production customer authentication, durable payment ledger, webhook reconciliation and robust rate limits are pending. Do not claim these features work yet.
 
