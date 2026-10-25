@@ -31,6 +31,74 @@
   let imported = false;
   let reviewed = false;
 
+  // Optional, user-initiated English playback of an already verified AI answer.
+  // Browser/device speech synthesis does not use the payment, N-ATLAS, or AI APIs.
+  // Device speech engines and voice quality vary; no automatic playback.
+  let activeSpeech = null;
+  let activeSpeechButton = null;
+
+  function playbackSupported() {
+    return Boolean(globalThis.speechSynthesis &&
+      typeof globalThis.speechSynthesis.speak === "function" &&
+      typeof globalThis.speechSynthesis.cancel === "function" &&
+      typeof globalThis.SpeechSynthesisUtterance === "function");
+  }
+
+  function stopAnswerSpeech() {
+    // Clear the active item before cancel: cancelled utterances may emit
+    // asynchronous end/error events which must not affect a newer answer.
+    if (activeSpeechButton) {
+      activeSpeechButton.textContent = "Listen to answer";
+      activeSpeechButton.setAttribute("aria-pressed", "false");
+    }
+    activeSpeech = null;
+    activeSpeechButton = null;
+    if (playbackSupported()) globalThis.speechSynthesis.cancel();
+  }
+
+  function playAnswerSpeech(answer, button) {
+    // Never allow playback as a substitute for an authenticated/verified answer.
+    if (!unlocked || inFlight || uncertainSubmission || !playbackSupported()) return;
+    if (activeSpeechButton === button) {
+      stopAnswerSpeech();
+      return;
+    }
+    stopAnswerSpeech();
+    const utterance = new globalThis.SpeechSynthesisUtterance(answer);
+    utterance.lang = "en-NG";
+    utterance.rate = 0.95;
+    // Prefer Nigerian English when available, otherwise another English voice.
+    // No claims are made about accent or locally installed voices.
+    const voices = typeof globalThis.speechSynthesis.getVoices === "function"
+      ? globalThis.speechSynthesis.getVoices() : [];
+    if (Array.isArray(voices)) {
+      const selected = voices.find(voice =>
+        typeof voice.lang === "string" && voice.lang.toLowerCase() === "en-ng") ||
+        voices.find(voice =>
+          typeof voice.lang === "string" && voice.lang.toLowerCase().startsWith("en"));
+      if (selected) utterance.voice = selected;
+    }
+    utterance.onend = () => {
+      if (activeSpeech === utterance) stopAnswerSpeech();
+    };
+    utterance.onerror = () => {
+      if (activeSpeech === utterance) {
+        stopAnswerSpeech();
+        setStatus("Audio playback could not finish on this device. You can still read the answer.");
+      }
+    };
+    activeSpeech = utterance;
+    activeSpeechButton = button;
+    button.textContent = "Stop speaking";
+    button.setAttribute("aria-pressed", "true");
+    try {
+      globalThis.speechSynthesis.speak(utterance);
+    } catch {
+      stopAnswerSpeech();
+      setStatus("Audio playback is unavailable on this device. The written answer remains available.");
+    }
+  }
+
   function setStatus(message) { status.textContent = message; }
   function controls() {
     unlock.disabled = inFlight || unlocked || passcode.value.trim().length < 1;
@@ -51,6 +119,7 @@
       uncertainSubmission;
   }
   function resetConversation() {
+    stopAnswerSpeech();
     history = [];
     contextProof = "";
     uncertainSubmission = false;
@@ -83,6 +152,16 @@
       const small = document.createElement("small");
       small.textContent = context;
       article.appendChild(small);
+    }
+    if (role === "assistant" && playbackSupported()) {
+      const listen = document.createElement("button");
+      listen.type = "button";
+      listen.className = "assistant-listen";
+      listen.textContent = "Listen to answer";
+      listen.setAttribute("aria-label", "Listen to this answer in English");
+      listen.setAttribute("aria-pressed", "false");
+      listen.addEventListener("click", () => playAnswerSpeech(content, listen));
+      article.appendChild(listen);
     }
     messages.appendChild(article);
     messages.scrollTop = messages.scrollHeight;
@@ -131,6 +210,7 @@
   }
   function sessionExpired(error) {
     if (error?.reason !== "assistant_session_expired") return false;
+    stopAnswerSpeech();
     unlocked = false;
     uncertainSubmission = false;
     history = [];
@@ -223,6 +303,7 @@
 
   end.addEventListener("click", async () => {
     if (inFlight || !unlocked) return;
+    stopAnswerSpeech();
     inFlight = true;
     controls();
     let revoked = false;
@@ -313,6 +394,7 @@
         text.length < 3 || text.length > 500 ||
         !globalThis.crypto || typeof globalThis.crypto.randomUUID !== "function") return;
     const requestId = globalThis.crypto.randomUUID();
+    stopAnswerSpeech();
     inFlight = true;
     controls();
     setStatus("Sending this educational question to the AI provider. Do not submit again.");
@@ -355,6 +437,11 @@
       controls();
     }
   });
+
+  // Stop speech when leaving the page, without modifying server-side session.
+  if (typeof globalThis.addEventListener === "function") {
+    globalThis.addEventListener("pagehide", stopAnswerSpeech);
+  }
 
   // Never persist transcripts, questions, answers, session tokens, or passcodes
   // into browser storage, URL parameters, payment endpoints, or analytics.
