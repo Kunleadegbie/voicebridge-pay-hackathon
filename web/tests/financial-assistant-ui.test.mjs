@@ -16,6 +16,7 @@ class Element {
     this.textContent = "";
     this.children = [];
     this.parent = null;
+    this.attributes = {};
     this.scrollTop = this.scrollHeight = 0;
   }
   addEventListener(type, callback) {
@@ -45,9 +46,10 @@ class Element {
     if (this.parent) this.parent.children = this.parent.children.filter(c => c !== this);
   }
   focus() { this.focused = true; }
+  setAttribute(name, value) { this.attributes[name] = String(value); }
 }
 
-function ui(fetchImpl) {
+function ui(fetchImpl, options = {}) {
   const ids = [
     "assistant-passcode", "assistant-start", "assistant-end",
     "assistant-new", "assistant-capacity", "assistant-capacity-status",
@@ -74,6 +76,23 @@ function ui(fetchImpl) {
       await callback({ detail: { text, language } });
   };
   const requests = [];
+  const spoken = [];
+  const speech = {
+    cancellations: 0,
+    getVoices() { return [{ lang: "en-NG", name: "Mock English voice" }]; },
+    speak(utterance) { spoken.push(utterance); },
+    cancel() { this.cancellations++; },
+  };
+  class MockUtterance {
+    constructor(text) { this.text = text; }
+  }
+  const browser = {
+    crypto: { randomUUID: () => "12345678-1234-4123-8123-123456789abc" },
+  };
+  if (options.speech) {
+    browser.speechSynthesis = speech;
+    browser.SpeechSynthesisUtterance = MockUtterance;
+  }
   const context = {
     document: doc,
     fetch: async (path, options) => {
@@ -82,12 +101,10 @@ function ui(fetchImpl) {
       requests.push(body);
       return fetchImpl(body);
     },
-    globalThis: {
-      crypto: { randomUUID: () => "12345678-1234-4123-8123-123456789abc" }
-    }
+    globalThis: browser
   };
   runInNewContext(script, context, { timeout: 1000 });
-  return { els, examples, requests, handoff };
+  return { els, examples, requests, handoff, speech, spoken };
 }
 function ok(body) {
   return { ok: true, status: 200, json: async () => ({ ok: true, ...body }) };
@@ -347,4 +364,152 @@ test("backend rate-limit reason is explained without revealing the access code",
   assert.match(els["assistant-access-status"].textContent, /15 minutes/);
   assert.equal(els["assistant-passcode"].value, "");
   assert.equal(els["assistant-ask"].disabled, true);
+});
+
+
+test("Listen to answer is user-initiated, English, and never makes an additional request", async () => {
+  const answer = "PayPal Sandbox is for simulated payments. No real money is transferred.";
+  const { els, requests, speech, spoken } = ui(async body => {
+    if (body.action === "start") return ok({ status: "ready" });
+    if (body.action === "ask") return ok({
+      status: "answered", answer,
+      language: "en-NG", payment_action_allowed: false,
+      history: [
+        { role: "user", content: body.question },
+        { role: "assistant", content: answer }
+      ],
+      context_proof: "signed-context-placeholder"
+    });
+    throw Error("No other external requests allowed");
+  }, { speech: true });
+  els["assistant-passcode"].value = "private";
+  await els["assistant-start"].emit("click");
+  els["assistant-question"].value = "What is PayPal Sandbox?";
+  els["assistant-privacy"].checked = true;
+  await els["assistant-privacy"].emit("change");
+  await els["assistant-form"].emit("submit");
+
+  assert.equal(spoken.length, 0, "speech must NOT start automatically");
+  assert.deepEqual(requests.map(x => x.action), ["start", "ask"]);
+  const reply = els["assistant-messages"].children[1];
+  const listen = reply.children.find(x => x.className === "assistant-listen");
+  assert.ok(listen, "the answer should have a playback button");
+  assert.equal(listen.textContent, "Listen to answer");
+  assert.equal(listen.attributes["aria-pressed"], "false");
+  await listen.emit("click");
+  assert.equal(spoken.length, 1);
+  assert.equal(spoken[0].text, answer);
+  assert.equal(spoken[0].lang, "en-NG");
+  assert.equal(listen.textContent, "Stop speaking");
+  assert.equal(listen.attributes["aria-pressed"], "true");
+  assert.deepEqual(requests.map(x => x.action), ["start", "ask"],
+    "playback cannot submit an AI, N-ATLAS, or PayPal request");
+  const cancelledBefore = speech.cancellations;
+  await listen.emit("click");
+  assert.equal(spoken.length, 1, "stop should not synthesize another answer");
+  assert.equal(speech.cancellations, cancelledBefore + 1);
+  assert.equal(listen.textContent, "Listen to answer");
+  assert.equal(listen.attributes["aria-pressed"], "false");
+});
+
+test("reviewed English N-ATLAS handoff needs separate Ask before spoken playback", async () => {
+  const answer = "A receipt may include the date, amount, and transaction reference.";
+  const { els, handoff, requests, spoken } = ui(async body => {
+    if (body.action === "start") return ok({ status: "ready" });
+    if (body.action === "ask") return ok({
+      status: "answered", answer,
+      language: "en-NG", payment_action_allowed: false,
+      history: [
+        { role: "user", content: body.question },
+        { role: "assistant", content: answer }
+      ],
+      context_proof: "signed-context-placeholder"
+    });
+    throw Error("No unrelated service requests allowed");
+  }, { speech: true });
+  els["assistant-passcode"].value = "private";
+  await els["assistant-start"].emit("click");
+  await handoff("What is a payment receive?", "en-NG");
+  assert.deepEqual(requests.map(x => x.action), ["start"]);
+  assert.equal(spoken.length, 0);
+  els["assistant-question"].value = "What is a payment receipt?";
+  await els["assistant-question"].emit("input");
+  els["assistant-privacy"].checked = true;
+  await els["assistant-privacy"].emit("change");
+  assert.equal(els["assistant-ask"].disabled, true, "review is mandatory");
+  els["assistant-review"].checked = true;
+  await els["assistant-review"].emit("change");
+  assert.equal(els["assistant-ask"].disabled, false);
+  assert.equal(spoken.length, 0);
+  await els["assistant-form"].emit("submit");
+  assert.equal(requests.length, 2);
+  assert.equal(requests[1].action, "ask");
+  assert.equal(requests[1].source_type, "reviewed_transcript");
+  assert.equal(requests[1].question, "What is a payment receipt?");
+  assert.equal(spoken.length, 0, "reply must not auto-play");
+  const reply = els["assistant-messages"].children[1];
+  const listen = reply.children.find(x => x.className === "assistant-listen");
+  assert.ok(listen);
+  await listen.emit("click");
+  assert.equal(spoken.length, 1);
+  assert.equal(spoken[0].text, answer);
+  assert.equal(requests.length, 2, "speech does not call model or PayPal");
+});
+
+test("new conversation cancels active English speech", async () => {
+  const answer = "This is a general educational explanation.";
+  const { els, requests, speech, spoken } = ui(async body => {
+    if (body.action === "start") return ok({ status: "ready" });
+    if (body.action === "ask") return ok({
+      status: "answered", answer,
+      language: "en-NG", payment_action_allowed: false,
+      history: [
+        { role: "user", content: body.question },
+        { role: "assistant", content: answer }
+      ],
+      context_proof: "signed-context-placeholder"
+    });
+    throw Error("Unexpected network request");
+  }, { speech: true });
+  els["assistant-passcode"].value = "private";
+  await els["assistant-start"].emit("click");
+  els["assistant-question"].value = "Explain digital payments.";
+  els["assistant-privacy"].checked = true;
+  await els["assistant-privacy"].emit("change");
+  await els["assistant-form"].emit("submit");
+  const listen = els["assistant-messages"].children[1].children.find(
+    x => x.className === "assistant-listen");
+  await listen.emit("click");
+  assert.equal(spoken.length, 1);
+  const count = speech.cancellations;
+  await els["assistant-new"].emit("click");
+  assert.equal(speech.cancellations, count + 1);
+  assert.equal(listen.textContent, "Listen to answer");
+  assert.equal(els["assistant-messages"].children.length, 1);
+  assert.deepEqual(requests.map(x => x.action), ["start", "ask"]);
+});
+
+test("without device speech synthesis the assistant stays readable without a playback button", async () => {
+  const { els } = ui(async body => {
+    if (body.action === "start") return ok({ status: "ready" });
+    if (body.action === "ask") return ok({
+      status: "answered", answer: "Digital payments are electronic.",
+      language: "en-NG", payment_action_allowed: false,
+      history: [
+        { role: "user", content: body.question },
+        { role: "assistant", content: "Digital payments are electronic." }
+      ],
+      context_proof: "signed-context-placeholder"
+    });
+    throw Error("Unexpected network request");
+  });
+  els["assistant-passcode"].value = "private";
+  await els["assistant-start"].emit("click");
+  els["assistant-question"].value = "What is digital payment?";
+  els["assistant-privacy"].checked = true;
+  await els["assistant-privacy"].emit("change");
+  await els["assistant-form"].emit("submit");
+  const reply = els["assistant-messages"].children[1];
+  assert.equal(reply.children[1].textContent, "Digital payments are electronic.");
+  assert.equal(reply.children.some(x => x.className === "assistant-listen"), false);
 });
