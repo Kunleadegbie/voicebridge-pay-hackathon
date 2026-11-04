@@ -136,7 +136,9 @@ _LANGUAGE_ALIASES = {
     ),
     "digital_payments": (
         "isanwo oni-nomba",
+        "isanwo ori ero",
         "biyan kudi ta hanyar lantarki",
+        "biyan kudi na dijital",
         "ikwu ugwo dijitalu",
     ),
 }
