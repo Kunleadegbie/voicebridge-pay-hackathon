@@ -5,6 +5,8 @@ from app.assistant_knowledge import select_knowledge
 
 @pytest.mark.parametrize("language, question", [
     ("en-NG", "What is a digital payment?"),
+    ("yo-NG", "K\u00ed ni \u00ecsanw\u00f3 or\u00ed \u1eb9\u0300r\u1ecd?"),
+    ("ha-NG", "Menene biyan ku\u0257i na dijital?"),
     ("yo-NG", "K\u00ed ni \u00ecsanw\u00f3 on\u00ed-n\u1ecd\u0301mb\u00e0?"),
     ("ha-NG", "Menene biyan ku\u0257i ta hanyar lantarki?"),
     ("ig-NG", "G\u1ecbn\u1ecb b\u1ee5 \u1ecbkw\u1ee5 \u1ee5gw\u1ecd dijital\u1ee5?"),
